@@ -1,0 +1,14 @@
+[project]
+name = "tensorforge"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.11.0",
+    "nguyenpanda>=1.0.0",
+    "numpy>=2.5.0",
+    "pytest>=9.1.1",
+    "seaborn>=0.13.2",
+    "torch>=2.12.1",
+]
