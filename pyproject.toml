@@ -1,14 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["main.py", "validate_baselines.py", "conftest.py", "arraysmith", "tests"]
+
 [project]
 name = "tensorforge"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "An interactive lab training ground for NumPy (arraysmith) and PyTorch (tensorsmith)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "forge-core",
+    "hint",
     "matplotlib>=3.11.0",
     "nguyenpanda>=1.0.0",
     "numpy>=2.5.0",
     "pytest>=9.1.1",
     "seaborn>=0.13.2",
-    "torch>=2.12.1",
 ]
+
+[project.optional-dependencies]
+torch = ["torch>=2.0.0"]
+hpc   = ["scikit-build-core", "nanobind"]
+
+[project.scripts]
+tforge = "main:main"
+
+[tool.uv.sources]
+forge-core = { path = "./forge_core", editable = true }
+hint = { path = "./hint", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hint"
+version = "0.1.0"
+description = "Dynamic, context-aware hint system for TensorForge curriculum modules"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "nguyenpanda>=1.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["hint"]
