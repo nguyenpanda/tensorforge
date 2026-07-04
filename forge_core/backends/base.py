@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import Any, Optional, Type
+from typing import Any, Literal
 
 
 class ExecutionBackend(ABC):
@@ -63,13 +63,17 @@ class ExecutionBackend(ABC):
     """
 
     @abstractmethod
-    def setup(self) -> None:
+    def setup(self, *args: Any, **kwargs: Any) -> None:
         """Allocate resources and transfer data to the computation device.
 
         Implementations should:
         - Allocate host / device buffers.
         - Copy input tensors from host to device (H2D transfer).
         - Perform any one-time initialisation that must not pollute timing.
+
+        Args:
+            *args: Positional arguments to pass to the setup step.
+            **kwargs: Keyword arguments to pass to the setup step.
         """
 
     @abstractmethod
@@ -107,7 +111,7 @@ class ExecutionBackend(ABC):
     # Context manager protocol — guarantees teardown on exception.
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "ExecutionBackend":
+    def __enter__(self) -> ExecutionBackend:
         """Invoke ``setup`` and ``warmup``; return ``self`` for use in ``with`` blocks.
 
         Returns:
@@ -119,10 +123,10 @@ class ExecutionBackend(ABC):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> bool:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> Literal[False]:
         """Invoke ``teardown`` unconditionally, then propagate any exception.
 
         Args:

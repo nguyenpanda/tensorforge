@@ -6,12 +6,11 @@ clean architectural principles via static AST analysis.
 """
 
 import numpy as np
-import pytest
-
-from forge_core.benchmark import compare_and_benchmark
-from forge_core.ast_validator import ast_policy
 from _baseline import BooleanLogicBaseline
 from student_code import BooleanLogic
+
+from forge_core.ast_validator import ast_policy
+from forge_core.benchmark import compare_and_benchmark
 
 # Fixed test inputs for deterministic verification
 _RNG = np.random.default_rng(42)

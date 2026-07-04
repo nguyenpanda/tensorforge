@@ -26,7 +26,12 @@ Responsibilities
    is constructed transparently, preserving backward compatibility for all
    existing ``test_XX.py`` call sites.
 
-4. **Reporting** — returns a :class:`BenchmarkResult` namedtuple for optional
+4. **Fast Mode** — when the environment variable ``TFORGE_FAST_MODE=1`` is
+   set (via ``tforge check --fast``), each backend is executed exactly once,
+   only correctness assertions run, and the function returns immediately.
+   Timing loops, ``tracemalloc``, and the performance scorecard are all skipped.
+
+5. **Reporting** — returns a :class:`BenchmarkResult` namedtuple for optional
    inspection in test files.
 
 Usage::
@@ -50,14 +55,18 @@ Usage::
 
 from __future__ import annotations
 
+import os
 import timeit
 import tracemalloc
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, NamedTuple, Optional
+from typing import Any, NamedTuple
 
 import numpy as np
 import pytest
 from nguyenpanda.swan import c24, reset
+
+from forge_core.backends.base import ExecutionBackend
 
 _ERR = c24["ff3333"]
 _WARN = c24["ff8800"]
@@ -100,13 +109,23 @@ class BenchmarkConfig:
 class BenchmarkResult(NamedTuple):
     """Timing and memory summary returned by :func:`compare_and_benchmark`.
 
+    In **Fast Mode** (``TFORGE_FAST_MODE=1``), all numeric fields are set to
+    ``0.0`` and ``passed_performance`` is ``True`` because no profiling is
+    performed — the result is a sentinel conveying that correctness passed.
+
     Attributes:
         student_time_ms: Mean student execution time in milliseconds.
+            ``0.0`` in Fast Mode.
         baseline_time_ms: Mean baseline execution time in milliseconds.
+            ``0.0`` in Fast Mode.
         slowdown_ratio: ``student_time_ms / baseline_time_ms``.
-        passed_performance: ``True`` if ratio is within the configured threshold.
+            ``0.0`` in Fast Mode.
+        passed_performance: ``True`` if ratio is within the configured threshold
+            or if Fast Mode bypassed the performance check entirely.
         student_peak_kb: Peak memory usage of student function in kilobytes.
+            ``0.0`` in Fast Mode.
         baseline_peak_kb: Peak memory usage of baseline function in kilobytes.
+            ``0.0`` in Fast Mode.
     """
 
     student_time_ms: float
@@ -117,7 +136,7 @@ class BenchmarkResult(NamedTuple):
     baseline_peak_kb: float = 0.0
 
 
-def _time_function(fn: Callable, n_runs: int) -> tuple[float, float, Any]:
+def _time_function(fn: Callable[[], Any], n_runs: int) -> tuple[float, float, Any]:
     """Execute *fn* once for output capture and memory tracing, then time it over *n_runs* repeats.
 
     Args:
@@ -198,11 +217,11 @@ def _assert_outputs_equal(
 
 
 def compare_and_benchmark(
-    student_fn: Callable,
-    baseline_fn: Callable,
-    config: Optional[BenchmarkConfig] = None,
-    student_backend: Optional["ExecutionBackend"] = None,
-    baseline_backend: Optional["ExecutionBackend"] = None,
+    student_fn: Callable[[], Any],
+    baseline_fn: Callable[[], Any],
+    config: BenchmarkConfig | None = None,
+    student_backend: ExecutionBackend | None = None,
+    baseline_backend: ExecutionBackend | None = None,
 ) -> BenchmarkResult:
     """Compare correctness and measure performance of a student's solution.
 
@@ -256,6 +275,33 @@ def compare_and_benchmark(
     # Resolve backends: fall back to NumpyBackend when the caller did not supply one.
     _student_backend = student_backend if student_backend is not None else NumpyBackend(fn=student_fn)
     _baseline_backend = baseline_backend if baseline_backend is not None else NumpyBackend(fn=baseline_fn)
+
+    # ------------------------------------------------------------------
+    # Fast Mode bypass: single execution, correctness only, no profiling.
+    # Activated by setting TFORGE_FAST_MODE=1 in the subprocess environment
+    # (via `tforge check --fast`) or directly in the calling process env.
+    # ------------------------------------------------------------------
+    if os.environ.get("TFORGE_FAST_MODE") == "1":
+        with _baseline_backend:
+            baseline_output = _baseline_backend.execute()
+        with _student_backend:
+            student_output = _student_backend.execute()
+
+        _assert_outputs_equal(student_output, baseline_output, config.rtol, config.atol)
+
+        _FAST_COLOR = c24["00d7ff"]
+        print(f"  {_FAST_COLOR}[Fast Mode]{reset} Correctness check passed.")
+        return BenchmarkResult(
+            student_time_ms=0.0,
+            baseline_time_ms=0.0,
+            slowdown_ratio=0.0,
+            passed_performance=True,
+            student_peak_kb=0.0,
+            baseline_peak_kb=0.0,
+        )
+    # ------------------------------------------------------------------
+    # Full benchmark path.
+    # ------------------------------------------------------------------
 
     with _baseline_backend:
         baseline_time_s, baseline_peak_kb, baseline_output = _time_function(

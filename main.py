@@ -11,8 +11,12 @@ ripple-effect present in flat curricula.
 
 Usage Examples
 --------------
-Check a lesson:
+Check a lesson (full benchmark):
     tforge check arraysmith basic 01
+
+Check a lesson (Fast Mode — correctness only, no timing loops):
+    tforge check arraysmith basic 01 --fast
+    tforge check arraysmith basic 01 -f
     tforge check arraysmith basic 01 create_squared_range
     tforge check arraysmith intermediate
     tforge check arraysmith
@@ -41,6 +45,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
 from nguyenpanda.swan import c24, reset
 
 ROOT = Path(__file__).parent.resolve()
@@ -58,7 +63,7 @@ ARRAYSMITH_TIERS = ["basic", "intermediate", "advanced", "applications"]
 def _ensure_torch() -> None:
     """Guard against missing optional ``torch`` dependency.
 
-    When a ``tensorsmith`` command is requested but the ``torch`` extra has not
+    When a ``tensorsmith`` or ``hpcsmith`` command is requested but the ``torch`` extra has not
     been installed, print a descriptive warning via swan and terminate with
     exit code 1.  This prevents an ImportError traceback from confusing the
     student with an irrelevant stack trace.
@@ -67,7 +72,7 @@ def _ensure_torch() -> None:
         print(
             f"{WARN_COLOR}⚠  Missing dependency: 'torch' is not installed.{reset}\n"
             f"   Run {INFO_COLOR}`uv sync --extra torch`{reset} to enable "
-            f"tensorsmith commands.",
+            f"tensorsmith and hpcsmith commands.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -83,7 +88,7 @@ def _resolve_target(
 
     Args:
         curriculum: Curriculum name (``"arraysmith"``, ``"tensorsmith"``,
-            ``"infra"``, or ``"all"``).
+            ``"hpcsmith"``, ``"infra"``, or ``"all"``).
         tier: Optional tier name (``"basic"``, ``"intermediate"``, etc.).
             When ``None``, the entire curriculum is tested.
         lesson: Optional lesson ID or prefix (e.g. ``"01"``).  When ``None``,
@@ -159,22 +164,36 @@ def run_check(
     tier: str | None,
     lesson: str | None,
     method: str | None = None,
+    fast: bool = False,
 ) -> int:
     """Run pytest against the specified curriculum, tier, and lesson.
+
+    When *fast* is ``True``, the environment variable ``TFORGE_FAST_MODE=1``
+    is injected into the subprocess environment before pytest launches.  The
+    benchmark engine reads this variable and bypasses timing loops,
+    ``tracemalloc``, and the performance scorecard, performing only a single
+    correctness assertion per function.
 
     Args:
         curriculum: Curriculum identifier.
         tier: Tier name (``"basic"``, ``"intermediate"``, etc.) or ``None``.
         lesson: Lesson ID/prefix or ``None``.
         method: Optional ``-k`` filter for a specific test method.
+        fast: When ``True``, set ``TFORGE_FAST_MODE=1`` in the subprocess
+            environment to skip heavy profiling overhead.
 
     Returns:
         int: pytest return code (0 = all passed).
     """
+    import os
     pytest_args = _resolve_target(curriculum, tier, lesson, method)
-    print(f"{INFO_COLOR}Running: pytest {' '.join(pytest_args)}{reset}\n")
+    mode_label = f"{WARN_COLOR}[Fast Mode]{reset} " if fast else ""
+    print(f"{INFO_COLOR}{mode_label}Running: pytest {' '.join(pytest_args)}{reset}\n")
     cmd = [sys.executable, "-m", "pytest", *pytest_args]
-    result = subprocess.run(cmd)
+    env = os.environ.copy()
+    if fast:
+        env["TFORGE_FAST_MODE"] = "1"
+    result = subprocess.run(cmd, env=env)
     return result.returncode
 
 
@@ -189,57 +208,88 @@ def run_validate() -> int:
     return result.returncode
 
 
+def run_lint() -> int:
+    """Run static analysis checks (ruff and mypy) sequentially.
+
+    Returns:
+        int: 0 if both checks pass, otherwise non-zero exit code.
+    """
+    print(f"{INFO_COLOR}[TensorForge Lint] Running ruff check...{reset}")
+    res_ruff = subprocess.run([sys.executable, "-m", "ruff", "check", str(ROOT)])
+    if res_ruff.returncode != 0:
+        return res_ruff.returncode
+
+    print(f"{INFO_COLOR}[TensorForge Lint] Running mypy strict checks...{reset}")
+    res_mypy = subprocess.run([sys.executable, "-m", "mypy", str(ROOT)])
+    if res_mypy.returncode != 0:
+        return res_mypy.returncode
+
+    print(f"{GREEN_COLOR}[TensorForge Lint] All static analysis checks passed!{reset}")
+    return 0
+
+
 def run_status() -> int:
     """Run tests silently and output a tier-grouped colorized progress report.
 
-    Iterates over the canonical tier order (basic → intermediate → advanced →
-    applications), printing a pass/fail status line per lesson within each tier.
-    A final progress bar summarises overall curriculum completion.
+    Iterates over all available curricula (arraysmith, tensorsmith, hpcsmith) and their
+    canonical tier order (basic → intermediate → advanced → applications),
+    printing a pass/fail status line per lesson within each tier.  A final
+    progress bar summarises overall curriculum completion.
 
     Returns:
         int: 0 always (errors are displayed inline).
     """
     print(f"{INFO_COLOR}Scanning curriculum progress...{reset}\n")
-    tests_dir = ROOT / "tests" / "arraysmith"
-    if not tests_dir.is_dir():
-        print(
-            f"{ERR_COLOR}Error: Curriculum directory not found: {tests_dir}{reset}",
-            file=sys.stderr,
-        )
-        return 1
-
     total_lessons = 0
     passed_lessons = 0
 
-    print(f"{BOLD}{INFO_COLOR}  Module Progress Report — arraysmith{reset}")
-    print(f"{INFO_COLOR}  {'─' * 50}{reset}")
-
-    for tier_name in ARRAYSMITH_TIERS:
-        tier_dir = tests_dir / tier_name
-        if not tier_dir.is_dir():
+    for curriculum_name in ["arraysmith", "tensorsmith", "hpcsmith"]:
+        tests_dir = ROOT / "tests" / curriculum_name
+        if not tests_dir.is_dir():
             continue
 
-        lessons = sorted([
-            d for d in tier_dir.iterdir()
-            if d.is_dir() and not d.name.startswith("__")
-        ])
-        if not lessons:
+        has_lessons = any(
+            (tests_dir / t).is_dir() and any(
+                d.is_dir() and not d.name.startswith("__") for d in (tests_dir / t).iterdir()
+            )
+            for t in ARRAYSMITH_TIERS if (tests_dir / t).is_dir()
+        )
+        if not has_lessons:
             continue
 
-        print(f"\n  {BOLD}{INFO_COLOR}[{tier_name.upper()}]{reset}")
+        print(f"{BOLD}{INFO_COLOR}  Module Progress Report — {curriculum_name}{reset}")
+        print(f"{INFO_COLOR}  {'─' * 50}{reset}")
 
-        for lesson in lessons:
-            total_lessons += 1
-            cmd = [sys.executable, "-m", "pytest", "-q", "--tb=no", str(lesson)]
-            res = subprocess.run(cmd, capture_output=True, text=True)
-            if res.returncode == 0:
-                passed_lessons += 1
-                status_str = f"{GREEN_COLOR}✅ PASSED{reset}"
-            else:
-                status_str = f"{WARN_COLOR}░░ PENDING / FAILED{reset}"
-            print(f"    {lesson.name:<32} {status_str}")
+        for tier_name in ARRAYSMITH_TIERS:
+            tier_dir = tests_dir / tier_name
+            if not tier_dir.is_dir():
+                continue
 
-    print(f"\n{INFO_COLOR}  {'─' * 50}{reset}")
+            lessons = sorted([
+                d for d in tier_dir.iterdir()
+                if d.is_dir() and not d.name.startswith("__")
+            ])
+            if not lessons:
+                continue
+
+            print(f"\n  {BOLD}{INFO_COLOR}[{tier_name.upper()}]{reset}")
+
+            for lesson in lessons:
+                total_lessons += 1
+                cmd = [sys.executable, "-m", "pytest", "-q", "--tb=no", str(lesson)]
+                res = subprocess.run(cmd, capture_output=True, text=True)
+                if res.returncode == 0:
+                    passed_lessons += 1
+                    status_str = f"{GREEN_COLOR}✅ PASSED{reset}"
+                else:
+                    status_str = f"{WARN_COLOR}░░ PENDING / FAILED{reset}"
+                print(f"    {lesson.name:<32} {status_str}")
+
+        print(f"\n{INFO_COLOR}  {'─' * 50}{reset}\n")
+
+    if total_lessons == 0:
+        print(f"{WARN_COLOR}No curriculum lessons found.{reset}\n")
+        return 1
 
     pct = int((passed_lessons / total_lessons) * 100) if total_lessons > 0 else 0
     bar_len = 10
@@ -247,7 +297,7 @@ def run_status() -> int:
     bar = "█" * filled + "░" * (bar_len - filled)
 
     bar_color = GREEN_COLOR if pct == 100 else (WARN_COLOR if pct >= 50 else ERR_COLOR)
-    print(f"\n  {BOLD}Curriculum Status: {bar_color}[{bar}] {pct}% Passed{reset}\n")
+    print(f"  {BOLD}Curriculum Status: {bar_color}[{bar}] {pct}% Passed{reset}\n")
     return 0
 
 
@@ -361,10 +411,10 @@ def run_generate(module: str, tier: str, lesson_name: str) -> int:
 
     print(f"{GREEN_COLOR}🎉 Successfully scaffolded lesson '{lesson_name}' in '{module}/{tier}'!{reset}\n")
     print(f"  Created student workspace : {INFO_COLOR}{student_dir.relative_to(ROOT)}{reset}")
-    print(f"    └─ INSTRUCTION.md")
-    print(f"    └─ student_code.py")
+    print("    └─ INSTRUCTION.md")
+    print("    └─ student_code.py")
     print(f"  Created test workspace    : {INFO_COLOR}{test_dir.relative_to(ROOT)}{reset}")
-    print(f"    └─ _baseline.py")
+    print("    └─ _baseline.py")
     print(f"    └─ test_{num_prefix}.py\n")
     return 0
 
@@ -380,6 +430,7 @@ def main() -> None:
         epilog=(
             "Examples:\n"
             "  tforge check arraysmith basic 01\n"
+            "  tforge check arraysmith basic 01 --fast\n"
             "  tforge check arraysmith basic 01 create_squared_range\n"
             "  tforge check arraysmith intermediate\n"
             "  tforge check infra\n"
@@ -397,7 +448,7 @@ def main() -> None:
         nargs="?",
         default="all",
         help=(
-            "Target curriculum ('arraysmith', 'tensorsmith', 'infra', or 'all'). "
+            "Target curriculum ('arraysmith', 'tensorsmith', 'hpcsmith', 'infra', or 'all'). "
             "Default: 'all'"
         ),
     )
@@ -428,9 +479,22 @@ def main() -> None:
         default=None,
         help="Optional specific method name to test (flag form).",
     )
+    check_parser.add_argument(
+        "--fast", "-f",
+        action="store_true",
+        default=False,
+        help=(
+            "Fast Mode: run each function exactly once for correctness only. "
+            "Skips timing loops, tracemalloc, and the performance scorecard. "
+            "Equivalent to setting TFORGE_FAST_MODE=1."
+        ),
+    )
 
     # --------------------------------------------------------------- validate
     subparsers.add_parser("validate", help="Run baseline self-consistency and registry checks")
+
+    # ------------------------------------------------------------------- lint
+    subparsers.add_parser("lint", help="Run static analysis (ruff and mypy strict mode)")
 
     # ----------------------------------------------------------------- status
     subparsers.add_parser("status", help="Show curriculum completion progress report")
@@ -451,16 +515,21 @@ def main() -> None:
         tier = getattr(args, "tier", None)
         lesson = getattr(args, "lesson", None)
         method = getattr(args, "method", None) or getattr(args, "method_flag", None)
+        fast = getattr(args, "fast", False)
 
-        # Guard tensorsmith commands against missing optional dependency.
-        if curriculum == "tensorsmith":
+        # Guard tensorsmith and hpcsmith commands against missing optional dependency.
+        if curriculum in ("tensorsmith", "hpcsmith"):
             _ensure_torch()
 
-        exit_code = run_check(curriculum, tier, lesson, method)
+        exit_code = run_check(curriculum, tier, lesson, method, fast=fast)
         sys.exit(exit_code)
 
     elif args.command == "validate":
         exit_code = run_validate()
+        sys.exit(exit_code)
+
+    elif args.command == "lint":
+        exit_code = run_lint()
         sys.exit(exit_code)
 
     elif args.command == "status":

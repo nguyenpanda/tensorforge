@@ -6,13 +6,10 @@ Run this module's tests:
 """
 
 import numpy as np
-import pytest
-
-from forge_core.benchmark import compare_and_benchmark
-
 from _baseline import ArrayManipulationBaseline
 from student_code import ArrayManipulation
 
+from forge_core.benchmark import compare_and_benchmark
 
 # ---------------------------------------------------------------------------
 # Fixed test inputs (deterministic)

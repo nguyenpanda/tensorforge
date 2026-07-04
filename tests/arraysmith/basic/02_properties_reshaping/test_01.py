@@ -6,13 +6,10 @@ Run this module's tests:
 """
 
 import numpy as np
-import pytest
-
-from forge_core.benchmark import compare_and_benchmark, BenchmarkConfig
-
 from _baseline import PropertiesReshapingBaseline
 from student_code import PropertiesReshaping
 
+from forge_core.benchmark import compare_and_benchmark
 
 # ---------------------------------------------------------------------------
 # Fixed test inputs (deterministic — same values every run)

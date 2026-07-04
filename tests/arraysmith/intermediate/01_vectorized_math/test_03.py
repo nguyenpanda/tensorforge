@@ -6,13 +6,10 @@ Run this module's tests:
 """
 
 import numpy as np
-import pytest
-
-from forge_core.benchmark import compare_and_benchmark
-
 from _baseline import VectorizedMathBaseline
 from student_code import VectorizedMath
 
+from forge_core.benchmark import compare_and_benchmark
 
 # ---------------------------------------------------------------------------
 # Fixed test inputs (deterministic)
@@ -39,7 +36,7 @@ class TestVectorizedMath:
     def test_normalize_columns(self, benchmark_config):
         """Student must zero-mean every column via broadcasting."""
         mat = _MATRIX.copy()
-        result = compare_and_benchmark(
+        compare_and_benchmark(
             student_fn=lambda: VectorizedMath.normalize_columns(mat),
             baseline_fn=lambda: VectorizedMathBaseline.normalize_columns(mat),
             config=benchmark_config,

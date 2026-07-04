@@ -15,7 +15,6 @@ Run your tests with:
 """
 
 import numpy as np
-from hint import show_hint
 
 
 class BooleanLogic:

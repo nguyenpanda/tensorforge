@@ -16,13 +16,11 @@ Run this module's tests:
     tforge check arraysmith 00
 """
 
-import numpy as np
-import pytest
-
-from forge_core.benchmark import compare_and_benchmark
 
 from _baseline import ArrayCreationBaseline
 from student_code import ArrayCreation
+
+from forge_core.benchmark import compare_and_benchmark
 
 
 class TestArrayCreation:
