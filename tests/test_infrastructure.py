@@ -26,6 +26,7 @@ from __future__ import annotations
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -34,21 +35,20 @@ import pytest
 ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT / "arraysmith" / "basic" / "01_array_creation"))
 
+from forge_core.ast_validator import ast_policy
+from forge_core.backends import ExecutionBackend, NumpyBackend
 from forge_core.benchmark import (
     BenchmarkConfig,
     BenchmarkResult,
     compare_and_benchmark,
 )
-from forge_core.ast_validator import ast_policy
-from forge_core.backends import ExecutionBackend, NumpyBackend
-from main import run_status, run_generate
-
+from main import run_generate, run_status
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _load_baseline(tier_lesson_path: str, class_name: str):
+def _load_baseline(tier_lesson_path: str, class_name: str) -> Any:
     """Import a baseline class using Tier-Scoped composite path.
 
     Args:
@@ -312,7 +312,8 @@ class TestBackendPluginArchitecture:
 
     def test_compare_and_benchmark_with_explicit_numpy_backend(self):
         """Passing explicit NumpyBackend instances must produce a valid result."""
-        fn = lambda: np.arange(100, dtype=np.int8)
+        def fn():
+            return np.arange(100, dtype=np.int8)
         result = compare_and_benchmark(
             student_fn=fn,
             baseline_fn=fn,

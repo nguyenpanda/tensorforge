@@ -25,7 +25,8 @@ explicitly.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from forge_core.backends.base import ExecutionBackend
 
@@ -54,15 +55,26 @@ class NumpyBackend(ExecutionBackend):
 
         Args:
             fn: Zero-argument callable to be executed and timed.
+
+        Raises:
+            TypeError: If *fn* is not callable.
         """
+        if not callable(fn):
+            raise TypeError(
+                f"NumpyBackend requires a zero-argument callable, got {type(fn).__name__}: {fn!r}"
+            )
         self._fn: Callable[[], Any] = fn
 
-    def setup(self) -> None:
+    def setup(self, *args: Any, **kwargs: Any) -> None:
         """No-op for NumPy: CPU memory is managed by the Python allocator.
 
         Retained in the interface to allow future subclasses (e.g. a backend
         that pre-pins host memory for faster DMA transfers) to extend behaviour
         without changing the call site.
+
+        Args:
+            *args: Accepted for interface compatibility; ignored.
+            **kwargs: Accepted for interface compatibility; ignored.
         """
 
     def warmup(self) -> None:

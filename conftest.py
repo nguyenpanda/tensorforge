@@ -16,11 +16,16 @@ Responsibilities
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
+
+if TYPE_CHECKING:
+    from forge_core.benchmark import BenchmarkConfig
 
 
 @pytest.fixture(scope="session")
-def benchmark_config():
+def benchmark_config() -> BenchmarkConfig:
     """Session-scoped default :class:`~forge_core.benchmark.BenchmarkConfig`.
 
     Individual test modules can override this fixture to customise thresholds

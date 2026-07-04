@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
+
 import pytest
 
 _TESTS_ROOT = Path(__file__).parent.resolve()
@@ -45,7 +47,7 @@ def _switch_lesson_context(test_dir_path: Path) -> None:
     sys.path.insert(0, test_dir_str)
 
 
-def pytest_pycollect_makemodule(module_path: Path, parent: pytest.Collector | None = None, **kwargs) -> None:
+def pytest_pycollect_makemodule(module_path: Path, parent: pytest.Collector | None = None, **kwargs: Any) -> None:
     """Hook invoked before pytest collects a Python test module file."""
     if module_path and module_path.parent:
         _switch_lesson_context(module_path.parent)

@@ -37,7 +37,7 @@ import importlib
 import inspect
 import pkgutil
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any
 
 from nguyenpanda.swan import c24, reset
 
@@ -45,7 +45,7 @@ _GOLD = c24["ffd700"]
 def yellow(s: str) -> str: return f"{_GOLD}{s}{reset}"
 
 
-def _build_registry() -> dict:
+def _build_registry() -> dict[str, Any]:
     """Scan all curriculum and tier sub-packages of ``hint/`` and collect hint definitions.
 
     Performs a two-level traversal:
@@ -66,11 +66,11 @@ def _build_registry() -> dict:
     Raises:
         AttributeError: When a ``hint_*.py`` file is missing ``MODULE`` or ``HINT``.
     """
-    registry: dict = {}
+    registry: dict[str, Any] = {}
 
     import hint as _hint_root_pkg
 
-    hint_root_path = Path(_hint_root_pkg.__file__).parent
+    hint_root_path = Path(str(_hint_root_pkg.__file__)).parent
 
     for _finder, curriculum_name, is_curriculum_pkg in pkgutil.iter_modules([str(hint_root_path)]):
         if not is_curriculum_pkg:
@@ -78,7 +78,7 @@ def _build_registry() -> dict:
 
         full_curriculum = f"hint.{curriculum_name}"
         curriculum_pkg = importlib.import_module(full_curriculum)
-        curriculum_path = Path(curriculum_pkg.__file__).parent
+        curriculum_path = Path(str(curriculum_pkg.__file__)).parent
 
         for _tier_finder, tier_or_module_name, is_tier_pkg in pkgutil.iter_modules(
             [str(curriculum_path)]
@@ -87,7 +87,7 @@ def _build_registry() -> dict:
             if is_tier_pkg:
                 full_tier = f"{full_curriculum}.{tier_or_module_name}"
                 tier_pkg = importlib.import_module(full_tier)
-                tier_path = Path(tier_pkg.__file__).parent
+                tier_path = Path(str(tier_pkg.__file__)).parent
 
                 for _inner_finder, module_name, _inner_ispkg in pkgutil.iter_modules(
                     [str(tier_path)]
@@ -105,7 +105,7 @@ def _build_registry() -> dict:
     return registry
 
 
-def _load_hint_module(full_module_name: str, registry: dict) -> None:
+def _load_hint_module(full_module_name: str, registry: dict[str, Any]) -> None:
     """Import a single hint module and merge its entry into *registry*.
 
     Args:
@@ -118,8 +118,8 @@ def _load_hint_module(full_module_name: str, registry: dict) -> None:
     """
     mod = importlib.import_module(full_module_name)
 
-    module_key: Optional[str] = getattr(mod, "MODULE", None)
-    hint_data: Optional[dict] = getattr(mod, "HINT", None)
+    module_key: str | None = getattr(mod, "MODULE", None)
+    hint_data: dict[str, Any] | None = getattr(mod, "HINT", None)
 
     if module_key is None:
         raise AttributeError(
@@ -135,10 +135,10 @@ def _load_hint_module(full_module_name: str, registry: dict) -> None:
     registry[module_key] = hint_data
 
 
-HINTS_REGISTRY: dict = _build_registry()
+HINTS_REGISTRY: dict[str, Any] = _build_registry()
 
 
-def get_hint_str(deep: int = 1) -> Tuple[Dict[str, str], Path, str, str, str]:
+def get_hint_str(deep: int = 1) -> tuple[dict[str, str], Path, str, str, str]:
     """Retrieve the hint dict for the calling context automatically.
 
     Inspects the call stack to determine the tier/lesson directory, class,
@@ -171,7 +171,7 @@ def get_hint_str(deep: int = 1) -> Tuple[Dict[str, str], Path, str, str, str]:
     frame = caller_frame_info.frame
     f_locals = frame.f_locals
 
-    class_name: Optional[str] = None
+    class_name: str | None = None
     if "self" in f_locals:
         class_name = f_locals["self"].__class__.__name__
     elif "cls" in f_locals:

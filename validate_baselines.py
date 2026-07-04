@@ -40,9 +40,10 @@ import argparse
 import importlib
 import sys
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any
 
 import numpy as np
 
@@ -53,9 +54,9 @@ import numpy as np
 ROOT = Path(__file__).parent.resolve()
 sys.path.insert(0, str(ROOT))
 
-from forge_core.benchmark import BenchmarkConfig, BenchmarkResult, compare_and_benchmark
-
 from nguyenpanda.swan import c24, reset
+
+from forge_core.benchmark import BenchmarkConfig, BenchmarkResult, compare_and_benchmark
 
 _GREEN  = c24["00ff87"]
 _RED    = c24["ff5f5f"]
@@ -82,7 +83,7 @@ class CheckResult:
     name: str
     passed: bool
     detail: str = ""
-    timing: Optional[str] = None
+    timing: str | None = None
 
 
 @dataclass
@@ -103,17 +104,15 @@ class ValidationReport:
         return sum(1 for r in self.results if r.passed)
 
 
-def _load_baseline(tier_lesson_path: str, class_name: str) -> type:
-    """Import a baseline class from a tiered lesson directory, evicting the cache first.
+def _load_baseline(tier_lesson_path: str, class_name: str) -> Any:
+    """Import a baseline class dynamically via sys.path modification.
 
     Args:
-        tier_lesson_path: Composite path in the form ``"<tier>/<lesson_dir>"``
-            (e.g. ``"basic/01_array_creation"``).
-        class_name: Name of the baseline class to import (e.g.
-            ``"ArrayCreationBaseline"``).
+        tier_lesson_path: Tier-scoped path (e.g. ``"basic/01_array_creation"``).
+        class_name: The name of the baseline class inside ``_baseline.py``.
 
     Returns:
-        type: The baseline class object.
+        Any: The baseline class object.
     """
     test_path   = str(ROOT / "tests" / "arraysmith" / tier_lesson_path)
     student_path = str(ROOT / "arraysmith" / tier_lesson_path)
@@ -161,7 +160,7 @@ _ARR_06   = _RNG_06.uniform(0.0, 10.0, size=(50, 50))
 _ARR_06_F = np.asfortranarray(_ARR_06)
 
 # Each entry: tier_lesson_path, class_name, method, fn_factory(cls) → zero-arg callable.
-TIER1_EXERCISES: list[dict] = [
+TIER1_EXERCISES: list[dict[str, Any]] = [
     # basic/01_array_creation
     {
         "tier_lesson_path": "basic/01_array_creation",
@@ -333,7 +332,7 @@ def _infra_performance_detection() -> CheckResult:
     name = "Benchmark detects slow code (loop)"
     cls = _load_baseline("basic/01_array_creation", "ArrayCreationBaseline")
 
-    def slow_student():
+    def slow_student() -> Any:
         result = []
         for i in range(100):
             result.append(i)
@@ -359,7 +358,7 @@ def _infra_dtype_int_check() -> CheckResult:
     name = "Integer arrays use exact comparison"
     cls = _load_baseline("basic/01_array_creation", "ArrayCreationBaseline")
 
-    def slightly_wrong():
+    def slightly_wrong() -> Any:
         arr = cls.create_integer_range().copy().astype(np.int16)
         arr[50] = 51
         return arr.astype(np.int8)

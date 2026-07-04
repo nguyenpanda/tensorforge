@@ -6,13 +6,10 @@ Run this module's tests:
 """
 
 import numpy as np
-import pytest
-
-from forge_core.benchmark import compare_and_benchmark, BenchmarkConfig
-
 from _baseline import IndexingSlicingBaseline
 from student_code import IndexingSlicing
 
+from forge_core.benchmark import compare_and_benchmark
 
 # ---------------------------------------------------------------------------
 # Fixed test inputs

@@ -26,11 +26,12 @@ TensorForge bridges the gap between theoretical knowledge and production-grade s
 
 The project follows a mirrored Clean Lab design with Tier-Scoped Numbering:
 
-```
+```bash
 tensorforge/
 ├── forge_core/                ← Shared infrastructure
 │   ├── backends/              ← HPC backend plugin system
 │   │   ├── base.py            ← ExecutionBackend ABC (setup/warmup/execute/teardown)
+│   │   ├── cuda_backend.py    ← PyTorch JIT C++/CUDA extension backend
 │   │   └── numpy_backend.py   ← CPU NumPy backend (default)
 │   ├── ast_validator.py       ← Dynamic AST policy enforcement engine
 │   └── benchmark.py           ← Time & memory benchmarking runner
@@ -54,11 +55,30 @@ tensorforge/
 │   │   └── 01_memory_layout/
 │   └── applications/          ← Future end-to-end project lessons
 ├── tensorsmith/               ← PyTorch curriculum (requires: uv sync --extra torch)
+│   └── basic/                 ← Foundational PyTorch neural network & tensor lessons
+├── hpcsmith/                  ← High-Performance Computing & C++/CUDA kernel curriculum
+│   ├── basic/
+│   │   └── 01_cpp_integration/ ← C++/CUDA extension integration via HPC Bridge
+│   ├── intermediate/
+│   │   └── 01_cuda_gemm/       ← Shared-memory tiled CUDA GEMM kernels
+│   └── native/
+│       ├── 01_cpp_addition.cpp ← Student-authored C++ / CUDA kernels
+│       └── 01_cuda_gemm.cu     ← Student-authored CUDA GEMM kernels
 ├── tests/                     ← Mirrored verification suite & reference baselines
 │   ├── conftest.py            ← Consolidated dynamic path & module resolution
 │   ├── test_infrastructure.py ← Benchmark, backend, AST & hint system unit tests
 │   ├── tensorsmith/
-│   │   └── conftest.py        ← torch importorskip guard
+│   │   ├── conftest.py        ← torch importorskip guard
+│   │   └── basic/
+│   ├── hpcsmith/              ← Mirrored HPC test directories & baselines
+│   │   ├── conftest.py        ← torch & CUDA importorskip guards
+│   │   ├── basic/
+│   │   │   └── 01_cpp_integration/
+│   │   │       └── test_01.py ← Verification suite for C++ addition extension
+│   │   └── intermediate/
+│   │       └── 01_cuda_gemm/
+│   │           ├── _baseline.py ← PyTorch golden standard reference
+│   │           └── test_01.py   ← Parameterized verification suite
 │   └── arraysmith/            ← Mirrored tiered test directories
 │       ├── basic/
 │       │   ├── 01_array_creation/
@@ -110,6 +130,14 @@ tforge check arraysmith basic 01
 tforge check arraysmith intermediate 02
 tforge check arraysmith advanced 01
 
+# Check a lesson in Fast Mode (correctness only, skips timing loops and tracemalloc overhead)
+tforge check arraysmith basic 01 --fast
+tforge check arraysmith basic 01 -f
+
+# Check a PyTorch tensorsmith lesson (requires: uv sync --extra torch)
+tforge check tensorsmith basic 01
+tforge check tensorsmith basic 01 --fast
+
 # Check a specific method within a lesson
 tforge check arraysmith basic 01 create_squared_range
 
@@ -117,8 +145,9 @@ tforge check arraysmith basic 01 create_squared_range
 tforge check arraysmith basic
 tforge check arraysmith intermediate
 
-# Check the entire arraysmith curriculum
+# Check the entire curriculum
 tforge check arraysmith
+tforge check tensorsmith
 
 # Run infrastructure unit tests (benchmark, backend ABC, AST enforcer, hints)
 tforge check infra
@@ -210,24 +239,30 @@ When you re-run the check CLI, the console outputs structured, interactive guida
 
 ## 🔌 HPC Backend Plugin Architecture
 
-The `forge_core/backends/` package provides an extensible execution backend system for future GPU/HPC targets:
+The `forge_core/backends/` package provides an extensible execution backend system for CPU, GPU, and custom HPC targets:
 
 ```python
-from forge_core.backends import ExecutionBackend, NumpyBackend
+from forge_core.backends import ExecutionBackend, NumpyBackend, CudaJitBackend
 
 # Use the default NumPy backend (transparent, backward-compatible)
 compare_and_benchmark(student_fn=MyClass.method, baseline_fn=BaselineClass.method)
 
-# Or inject an explicit backend for future CUDA/Triton experiments
+# Or inject an explicit backend for CUDA / C++ JIT-compiled kernels
 compare_and_benchmark(
     student_fn=MyClass.method,
     baseline_fn=BaselineClass.method,
-    student_backend=NumpyBackend(fn=MyClass.method),
+    student_backend=CudaJitBackend(
+        source_path="tensorsmith/native/my_kernel.cu",
+        module_name="my_kernel",
+        function_name="forward",
+    ),
 )
 ```
 
-New backends only need to implement four lifecycle methods defined in `ExecutionBackend`:
-- `setup()` — Allocate memory / H2D transfer.
-- `warmup()` — Eliminate JIT / CUDA cold-start overhead.
-- `execute()` — The measured computation.
-- `teardown()` — Release resources.
+New backends implement four lifecycle methods defined in `ExecutionBackend`:
+- `setup(*args, **kwargs)` — Allocate buffers and transfer data to the target device (H2D).
+- `warmup()` — Execute once to absorb JIT compilation and CUDA stream initialization latency.
+- `execute()` — Invoke the kernel and synchronize device streams for steady-state throughput timing.
+- `teardown()` — Clear device references and reclaim VRAM pool cache (`torch.cuda.empty_cache()`).
+
+The `CudaJitBackend` is **device-aware**: when running on macOS or CPU-only Linux, CUDA transfers and stream synchronization are skipped transparently, allowing C++ PyTorch extensions to execute natively on the CPU without modification.

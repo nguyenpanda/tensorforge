@@ -15,7 +15,8 @@ import functools
 import inspect
 import sys
 import textwrap
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import pytest
 from nguyenpanda.swan import c24, reset
@@ -225,14 +226,14 @@ def ast_policy(
     forbid_imports: Sequence[str] | None = None,
     require_calls: Sequence[str] | None = None,
     forbid_calls: Sequence[str] | None = None,
-    target: Callable | str | None = None,
+    target: Callable[..., Any] | str | None = None,
     feedback: dict[str, str] | None = None,
-) -> Callable:
+) -> Callable[..., Any]:
     """Decorator to enforce static AST architectural constraints on student code."""
 
-    def decorator(fn: Callable) -> Callable:
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             target_name = ""
             node_to_check: ast.AST | None = None
 
@@ -257,7 +258,7 @@ def ast_policy(
                     node_to_check = _find_target_node_in_module(mod_ast, target_name)
                     if node_to_check is None:
                         node_to_check = mod_ast
-                        target_name = f"student_code (module)"
+                        target_name = "student_code (module)"
                 except (TypeError, OSError):
                     node_to_check = None
 
