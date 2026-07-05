@@ -90,4 +90,4 @@ class CppIntegration:
         result_tensor: torch.Tensor = backend.execute()
         backend.teardown()
 
-        return result_tensor.numpy()
+        return result_tensor.cpu().numpy()
