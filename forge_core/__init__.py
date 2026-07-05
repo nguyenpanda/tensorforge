@@ -16,12 +16,14 @@ Public API
 
 from forge_core.backends import CudaJitBackend, ExecutionBackend, NumpyBackend
 from forge_core.benchmark import BenchmarkConfig, BenchmarkResult, compare_and_benchmark
+from forge_core.dataset_manager import DatasetManager
 
 __all__ = [
     "BenchmarkConfig",
     "BenchmarkResult",
-    "compare_and_benchmark",
     "CudaJitBackend",
+    "DatasetManager",
     "ExecutionBackend",
     "NumpyBackend",
+    "compare_and_benchmark",
 ]

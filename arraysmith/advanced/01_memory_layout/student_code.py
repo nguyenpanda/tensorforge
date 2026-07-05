@@ -17,6 +17,8 @@ Run your tests with:
 
 import numpy as np
 
+from hint import show_hint  # noqa: F401
+
 
 class MemoryLayout:
     """Exercises covering array contiguity, byte strides, and view vs copy mechanics."""
@@ -37,7 +39,7 @@ class MemoryLayout:
             C-contiguous NumPy array with identical elements to *arr*.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement ensure_c_contiguous()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
     def check_memory_share(cls, arr1: np.ndarray, arr2: np.ndarray) -> bool:
@@ -54,7 +56,7 @@ class MemoryLayout:
             True if *arr1* and *arr2* share memory, False otherwise.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement check_memory_share()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
     def get_row_stride_bytes(cls, arr: np.ndarray) -> int:
@@ -69,4 +71,4 @@ class MemoryLayout:
             Integer number of bytes for stride along axis 0.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement get_row_stride_bytes()")
+        raise NotImplementedError("TODO: Implement this function")

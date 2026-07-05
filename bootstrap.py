@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-from nguyenpanda.swan import color, c8, c24, RESET
+from nguyenpanda.swan import RESET, c8, c24, color
 
 CYAN_LOGO = c24[(0, 220, 255)]
 MAGENTA_LINE = c24[(180, 80, 255)]
@@ -33,14 +33,28 @@ RESET = RESET
 
 def print_banner() -> None:
     print(f"\n{MAGENTA_LINE}{'=' * 72}{RESET}")
-    print(f"{CYAN_LOGO}  ████████╗███████╗███╗   ██╗███████╗██████╗ ██████╗  ██████╗ ███████╗███████╗{RESET}")
-    print(f"{CYAN_LOGO}  ╚══██╔══╝██╔════╝████╗  ██║██╔════╝██╔═══██╗██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔════╝{RESET}")
-    print(f"{CYAN_LOGO}     ██║   █████╗  ██╔██╗ ██║███████╗██║   ██║██████╔╝██████╔╝██║   ██║██████╔╝█████╗  {RESET}")
-    print(f"{CYAN_LOGO}     ██║   ██╔══╝  ██║╚██╗██║╚════██║██║   ██║██╔══██╗██╔══██╗██║   ██║██╔══██╗██╔══╝  {RESET}")
-    print(f"{CYAN_LOGO}     ██║   ███████╗██║ ╚████║███████║╚██████╔╝██║  ██║██║  ██║╚██████╔╝██║  ██║███████╗{RESET}")
-    print(f"{CYAN_LOGO}     ╚═╝   ╚══════╝╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝{RESET}")
+    print(
+        f"{CYAN_LOGO}  ████████╗███████╗███╗   ██╗███████╗██████╗ ██████╗  ██████╗ ███████╗███████╗{RESET}"
+    )
+    print(
+        f"{CYAN_LOGO}  ╚══██╔══╝██╔════╝████╗  ██║██╔════╝██╔═══██╗██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔════╝{RESET}"
+    )
+    print(
+        f"{CYAN_LOGO}     ██║   █████╗  ██╔██╗ ██║███████╗██║   ██║██████╔╝██████╔╝██║   ██║██████╔╝█████╗  {RESET}"
+    )
+    print(
+        f"{CYAN_LOGO}     ██║   ██╔══╝  ██║╚██╗██║╚════██║██║   ██║██╔══██╗██╔══██╗██║   ██║██╔══██╗██╔══╝  {RESET}"
+    )
+    print(
+        f"{CYAN_LOGO}     ██║   ███████╗██║ ╚████║███████║╚██████╔╝██║  ██║██║  ██║╚██████╔╝██║  ██║███████╗{RESET}"
+    )
+    print(
+        f"{CYAN_LOGO}     ╚═╝   ╚══════╝╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝{RESET}"
+    )
     print(f"{MAGENTA_LINE}{'=' * 72}{RESET}")
-    print(f"{WHITE_TITLE}          TensorForge Multi-Platform Bootstrap & Environment Pipeline{RESET}\n")
+    print(
+        f"{WHITE_TITLE}          TensorForge Multi-Platform Bootstrap & Environment Pipeline{RESET}\n"
+    )
 
 
 def print_header(title: str) -> None:
@@ -80,7 +94,9 @@ def prompt_yes_no(question: str, default: bool = False) -> bool:
             print_warn("Please enter 'y' or 'n'.")
         except (KeyboardInterrupt, EOFError):
             print()
-            print_info(f"No input detected or cancelled. Defaulting to: {'yes' if default else 'no'}")
+            print_info(
+                f"No input detected or cancelled. Defaulting to: {'yes' if default else 'no'}"
+            )
             return default
 
 
@@ -90,7 +106,9 @@ def prompt_choice(question: str, options: list[str], default_idx: int = 1) -> in
         print(f"  {BRACKET_CYAN}[{idx}]{RESET} {opt}")
     while True:
         try:
-            ans = input(f"{PROMPT_YELLOW}Select an option [1-{len(options)}] (default {default_idx}): {RESET}").strip()
+            ans = input(
+                f"{PROMPT_YELLOW}Select an option [1-{len(options)}] (default {default_idx}): {RESET}"
+            ).strip()
             if not ans:
                 print_info(f"Defaulting to option [{default_idx}]: {options[default_idx - 1]}")
                 return default_idx
@@ -101,36 +119,40 @@ def prompt_choice(question: str, options: list[str], default_idx: int = 1) -> in
             print_warn(f"Please enter a number between 1 and {len(options)}.")
         except (KeyboardInterrupt, EOFError):
             print()
-            print_info(f"No input detected or cancelled. Defaulting to option [{default_idx}]: {options[default_idx - 1]}")
+            print_info(
+                f"No input detected or cancelled. Defaulting to option [{default_idx}]: {options[default_idx - 1]}"
+            )
             return default_idx
 
 
 def phase1_os_sanity_check() -> None:
     print_header("Phase 1: OS & Python Sanity Check")
-    
+
     current_os = platform.system()
     if current_os == "Windows" or os.name == "nt":
         print_error("Windows is explicitly not supported. Please use WSL2, Linux, or macOS.")
         sys.exit(1)
-        
+
     print_success(f"Supported OS detected: {current_os} ({platform.machine()})")
-    
+
     py_ver = sys.version_info
     if py_ver < (3, 12):
-        print_error(f"Python >= 3.12 is required. Detected Python {py_ver.major}.{py_ver.minor}.{py_ver.micro}")
+        print_error(
+            f"Python >= 3.12 is required. Detected Python {py_ver.major}.{py_ver.minor}.{py_ver.micro}"
+        )
         sys.exit(1)
-        
+
     print_success(f"Python version check passed: {py_ver.major}.{py_ver.minor}.{py_ver.micro}")
 
 
 def phase2_nfs_check() -> None:
     print_header("Phase 2: Storage & NFS Bottleneck Check")
-    
+
     is_nfs = prompt_yes_no("Are you running this project on a shared network drive (NFS)?")
     if is_nfs:
         print_info("A local '.venv' on NFS causes degraded I/O and hardlinking failures with 'uv'.")
         venv_path = os.path.abspath("./.venv")
-        
+
         if os.path.exists(venv_path) or os.path.islink(venv_path):
             if os.path.islink(venv_path):
                 target = os.readlink(venv_path)
@@ -140,23 +162,28 @@ def phase2_nfs_check() -> None:
                     print_success("Removed existing .venv symlink.")
             elif os.path.isdir(venv_path):
                 print_warn(f"Existing physical directory detected at {venv_path}.")
-                if prompt_yes_no("Do you want to safely remove ./venv via atomic rename and background deletion to eliminate NFS bottlenecks?", default=True):
+                if prompt_yes_no(
+                    "Do you want to safely remove ./venv via atomic rename and background deletion to eliminate NFS bottlenecks?",
+                    default=True,
+                ):
                     trash_dir_name = f"trash_venv_{int(time.time())}"
                     print_info(f"Atomically moving ./venv -> {trash_dir_name}...")
                     os.rename(venv_path, trash_dir_name)
                     print_info("Spawning detached background process to remove trash directory...")
                     subprocess.Popen(["rm", "-rf", trash_dir_name])
-                    print_success("Successfully moved ./venv to trash for asynchronous background deletion.")
+                    print_success(
+                        "Successfully moved ./venv to trash for asynchronous background deletion."
+                    )
             else:
                 if prompt_yes_no("Existing ./venv file detected. Remove it?"):
                     os.remove(venv_path)
-                    
+
         username = getpass.getuser()
         tmp_venv_dir = f"/tmp/tforge_venv_{username}"
-        
+
         print_info(f"Creating target virtual environment directory at: {tmp_venv_dir}")
         os.makedirs(tmp_venv_dir, exist_ok=True)
-        
+
         if not os.path.exists(venv_path) and not os.path.islink(venv_path):
             print_info(f"Creating secure symlink: {venv_path} -> {tmp_venv_dir}")
             try:
@@ -173,16 +200,16 @@ def phase2_nfs_check() -> None:
 
 def phase3_module_selection() -> tuple[int, list[str], str]:
     print_header("Phase 3: Module & Hardware Selection Menu")
-    
+
     options = [
         "Core (Numpy only - `arraysmith`) -> extras: dev",
         "AI Models (PyTorch - `tensorsmith`) -> extras: torch, dev",
         "HPC Kernels (PyTorch + Compilers - `hpcsmith`) -> extras: torch, hpc, dev",
-        "Install Everything -> extras: torch, hpc, dev"
+        "Install Everything -> extras: torch, hpc, dev",
     ]
-    
+
     choice = prompt_choice("Select your learning path:", options, default_idx=4)
-    
+
     if choice == 1:
         extras = ["dev"]
         extras_display = "dev"
@@ -195,25 +222,29 @@ def phase3_module_selection() -> tuple[int, list[str], str]:
     else:
         extras = ["torch", "hpc", "dev"]
         extras_display = "torch, hpc, dev"
-        
+
     print_success(f"Selected learning path [{choice}]. Extras to install: {extras_display}")
     return choice, extras, extras_display
 
 
 def phase4_dynamic_url_resolution(choice: int) -> str:
     print_header("Phase 4: Dynamic PyTorch URL Resolution")
-    
+
     if choice == 1:
-        print_info("Core learning path selected (No PyTorch needed). Skipping dynamic URL resolution.")
+        print_info(
+            "Core learning path selected (No PyTorch needed). Skipping dynamic URL resolution."
+        )
         return ""
-        
+
     current_os = platform.system()
     index_args = ""
-    
+
     if current_os == "Darwin":
         arch = platform.machine().lower()
         if arch in ("arm64", "aarch64"):
-            print_success("Apple Silicon detected. Native MPS support enabled via default PyPI wheels.")
+            print_success(
+                "Apple Silicon detected. Native MPS support enabled via default PyPI wheels."
+            )
         elif arch in ("x86_64", "amd64", "i386", "i686"):
             print_warn("Apple Intel detected. CPU-only fallback enabled.")
         else:
@@ -228,26 +259,42 @@ def phase4_dynamic_url_resolution(choice: int) -> str:
                 has_cuda = True
                 print_success("NVIDIA GPU detected via nvidia-smi:")
                 for line in res.stdout.splitlines():
-                    if any(key in line for key in ("NVIDIA", "Driver Version", "RTX", "GTX", "Tesla", "A100", "H100", "L40")):
+                    if any(
+                        key in line
+                        for key in (
+                            "NVIDIA",
+                            "Driver Version",
+                            "RTX",
+                            "GTX",
+                            "Tesla",
+                            "A100",
+                            "H100",
+                            "L40",
+                        )
+                    ):
                         print_info(f"  {line.strip()}")
             else:
-                print_warn("nvidia-smi command returned non-zero exit code. No active CUDA GPU detected.")
+                print_warn(
+                    "nvidia-smi command returned non-zero exit code. No active CUDA GPU detected."
+                )
         except FileNotFoundError:
             print_warn("'nvidia-smi' not found in PATH. No CUDA GPU detected.")
         except Exception as e:
             print_warn(f"Could not execute nvidia-smi: {e}")
-            
+
         options = [
             "CUDA 12.6 (Recommended for RTX 20/30/40 series)",
             "CUDA 12.4",
             "CUDA 12.1",
             "CUDA 11.8",
-            "CPU Only"
+            "CPU Only",
         ]
-        
+
         default_choice = 1 if has_cuda else 5
-        linux_choice = prompt_choice("Select target PyTorch environment for Linux:", options, default_idx=default_choice)
-        
+        linux_choice = prompt_choice(
+            "Select target PyTorch environment for Linux:", options, default_idx=default_choice
+        )
+
         if linux_choice == 1:
             index_args = "--extra-index-url https://download.pytorch.org/whl/cu126"
         elif linux_choice == 2:
@@ -260,37 +307,41 @@ def phase4_dynamic_url_resolution(choice: int) -> str:
             index_args = "--extra-index-url https://download.pytorch.org/whl/cpu"
         else:
             index_args = "--extra-index-url https://download.pytorch.org/whl/cu126"
-            
-        print_success(f"Configured PyTorch index argument: {index_args if index_args else '(default PyPI)'}")
+
+        print_success(
+            f"Configured PyTorch index argument: {index_args if index_args else '(default PyPI)'}"
+        )
     else:
         print_info(f"OS '{current_os}' detected. Using default PyPI index.")
         index_args = ""
-        
+
     return index_args
 
 
 def phase5_execution(extras: list[str], extras_display: str, index_args: str) -> None:
     print_header("Phase 5: Environment Synchronization & Execution")
-    
+
     cmd_display = f"uv sync --extra {extras_display}"
     if index_args:
         cmd_display += f" {index_args}"
-        
+
     print_info(f"Final bootstrap command: {CMD_GREEN}{cmd_display}{RESET}")
-    
+
     env = os.environ.copy()
     env["UV_LINK_MODE"] = "copy"
-    print_info("Set environment variable: UV_LINK_MODE=copy (suppresses hardlink warnings across NFS/filesystems)")
-    
+    print_info(
+        "Set environment variable: UV_LINK_MODE=copy (suppresses hardlink warnings across NFS/filesystems)"
+    )
+
     cmd_list = ["uv", "sync"]
     for extra in extras:
         cmd_list.extend(["--extra", extra])
     if index_args:
         cmd_list.extend(index_args.split())
-        
+
     print_info("Executing sync process via subprocess...\n")
     print(f"{SEP_CYAN}{'-' * 60}{RESET}")
-    
+
     try:
         res = subprocess.run(cmd_list, env=env)
         print(f"{SEP_CYAN}{'-' * 60}{RESET}\n")
@@ -299,9 +350,13 @@ def phase5_execution(extras: list[str], extras_display: str, index_args: str) ->
             sys.exit(res.returncode)
         else:
             print_success("TensorForge environment initialization completed successfully!")
-            print_info("You can now run 'tforge validate' or 'tforge check all' to verify your workspace.")
+            print_info(
+                "You can now run 'tforge validate' or 'tforge check all' to verify your workspace."
+            )
     except FileNotFoundError:
-        print_error("'uv' executable not found. Please ensure Astral 'uv' is installed and in your PATH.")
+        print_error(
+            "'uv' executable not found. Please ensure Astral 'uv' is installed and in your PATH."
+        )
         sys.exit(1)
     except Exception as e:
         print_error(f"An unexpected error occurred during execution: {e}")

@@ -18,6 +18,8 @@ Run your tests with:
 
 import numpy as np
 
+from hint import show_hint  # noqa: F401
+
 
 class VectorizedMath:
     """Exercises covering axis-aware reductions and NumPy broadcasting."""
@@ -47,7 +49,7 @@ class VectorizedMath:
             np.ndarray: 1-D array of shape (M,) containing the mean of each row.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement row_means()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
     def normalize_columns(cls, matrix: np.ndarray) -> np.ndarray:
@@ -79,4 +81,4 @@ class VectorizedMath:
                         zero-mean.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement normalize_columns()")
+        raise NotImplementedError("TODO: Implement this function")

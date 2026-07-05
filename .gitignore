@@ -13,3 +13,7 @@ wheels/
 # MacOS
 .DS_Store
 .note
+.sync
+
+# Cached datasets
+.tensorforge_datasets/

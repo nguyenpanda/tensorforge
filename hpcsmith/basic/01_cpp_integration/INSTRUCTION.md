@@ -11,11 +11,9 @@
 ## 1. Objectives
 
 By the end of this module you will be able to:
-
-- Connect student-authored C++ / CUDA kernels to Python using PyTorch's `torch.utils.cpp_extension.load`.
-- Execute accelerated native code via TensorForge's `CudaJitBackend` four-stage lifecycle (`setup → warmup → execute → teardown`).
-- Understand device-aware execution and graceful fallback to CPU-only mode on non-CUDA environments (e.g., Apple Silicon macOS).
+- Connect student-authored C++ kernels to Python using PyTorch's `torch.utils.cpp_extension.load`.
 - Seamlessly transition data between NumPy arrays (`np.ndarray`) and PyTorch tensors (`torch.Tensor`) with zero copying where possible using `torch.from_numpy()`.
+- Understand how pybind11 exposes native ATen operators to the Python runtime.
 
 ---
 
@@ -23,58 +21,38 @@ By the end of this module you will be able to:
 
 ### 2.1 Why Native C++ Extensions?
 
-While PyTorch provides optimized built-in operations, advanced research and high-performance computing (HPC) often require writing custom kernels in C++ or CUDA (e.g., custom fused attention kernels, specialized differential equations, or custom activation layers).
+While PyTorch provides optimized built-in operations, high-performance computing (HPC) and custom systems research often require authoring native C++ or CUDA kernels. The TensorForge framework transparently compiles `student_code.cpp` on-the-fly and binds native symbols directly to Python.
 
-TensorForge bridges this gap through the **HPC Bridge**, which dynamically compiles C++/CUDA source files at runtime and presents them as standard Python callables.
+### 2.2 Transparent JIT Compilation
 
-### 2.2 The HPC Bridge Lifecycle
-
-To isolate initialization latency, JIT compilation time, and device memory transfer overhead from steady-state compute timing, all HPC backends implement the `ExecutionBackend` four-stage contract:
+The Python wrapper `student_code.py` invokes `torch.utils.cpp_extension.load` to compile the C++ source file and map symbols into the module namespace:
 
 ```python
-from forge_core.backends.cuda_backend import CudaJitBackend
+from torch.utils.cpp_extension import load
 
-# 1. Instantiate (compiles C++/CUDA source on first load and caches the module)
-backend = CudaJitBackend(
-    source_path="hpcsmith/native/01_cpp_addition.cpp",
-    module_name="cpp_addition",
-    function_name="add_tensors",
+_cpp_module = load(
+    name="hpc_basic_01_cpp_integration",
+    sources=["student_code.cpp"],
+    extra_cflags=["-O3"],
 )
-
-# 2. Setup: transfer host tensors to device memory (H2D)
-backend.setup(tensor_a, tensor_b)
-
-# 3. Warmup: execute once to initialize CUDA context, PTX JIT, and streams
-backend.warmup()
-
-# 4. Execute: invoke kernel and synchronize device stream for accurate timing
-result = backend.execute()
-
-# 5. Teardown: release tensor references and clear device allocator cache
-backend.teardown()
+add_tensors = _cpp_module.add_tensors
 ```
-
-### 2.3 Device-Aware Execution
-
-The `CudaJitBackend` automatically detects whether a CUDA-capable GPU is available via `torch.cuda.is_available()`. On systems without CUDA (such as macOS or CPU-only Linux), device transfers (`.cuda()`) and stream synchronization (`torch.cuda.synchronize()`) are bypassed transparently. Standard C++ extensions execute natively on the CPU without modification.
 
 ---
 
 ## 3. Exercises
 
-Open `student_code.py` and review the implementation of `CppIntegration.run_cpp_addition(a, b)`.
+Open `student_code.cpp` and implement the C++ function `add_tensors`.
 
-### Exercise 1 — `run_cpp_addition()`
+### Exercise 1 — `add_tensors()`
 
-**Task:** Add two NumPy arrays $a, b \in \mathbb{R}^{N \times M}$ by bridging them to a C++ PyTorch extension kernel:
+**Task:** Add two PyTorch tensors $a, b$ using C++ ATen arithmetic operator overloading:
 
-$$y = \text{add\_tensors}(\text{tensor}(a), \text{tensor}(b))$$
+$$y = a + b$$
 
 **Implementation Steps:**
-1. Convert input NumPy arrays to PyTorch tensors using `torch.from_numpy(np.ascontiguousarray(x))`.
-2. Retrieve the process-scoped compiled backend instance via `_get_backend()`.
-3. Execute the full four-stage lifecycle (`setup`, `warmup`, `execute`, `teardown`).
-4. Convert the resulting PyTorch tensor back to a NumPy array via `.numpy()`.
+1. In `student_code.cpp`, remove the `throw std::runtime_error(...)` statement.
+2. Return `a + b;` using ATen's overloaded addition operator.
 
 ---
 
@@ -83,19 +61,9 @@ $$y = \text{add\_tensors}(\text{tensor}(a), \text{tensor}(b))$$
 Execute your verification suite using the TensorForge CLI:
 
 ```bash
-# Check this lesson using the CLI (Full Benchmark Mode)
-tforge check hpcsmith basic 01
+# Check this lesson
+uv run tforge check hpcsmith basic 01
 
-# Check in Fast Mode (correctness only, skips timing loops and tracemalloc overhead)
-tforge check hpcsmith basic 01 --fast
-tforge check hpcsmith basic 01 -f
-
-# Check a specific test method within this lesson
-tforge check hpcsmith basic 01 test_addition_float32_small
-
-# Run all tests in the hpcsmith curriculum
-tforge check hpcsmith
-
-# View progress across all curricula (arraysmith, tensorsmith, and hpcsmith)
-tforge status
+# Run tests directly with pytest
+uv run pytest tests/curriculum/hpcsmith/basic/01_cpp_integration/test_01.py -v -s
 ```

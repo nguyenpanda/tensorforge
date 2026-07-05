@@ -50,7 +50,7 @@ from nguyenpanda.swan import c24, reset
 
 ROOT = Path(__file__).parent.resolve()
 
-ERR_COLOR  = c24["ff3333"]
+ERR_COLOR = c24["ff3333"]
 INFO_COLOR = c24["00d7ff"]
 GREEN_COLOR = c24["00ff87"]
 WARN_COLOR = c24["ff8800"]
@@ -101,26 +101,29 @@ def _resolve_target(
     if curriculum == "all":
         args = ["tests/", "-v", "-s"]
     elif curriculum == "infra":
-        args = ["tests/test_infrastructure.py", "-v", "-s"]
+        args = ["tests/infra/", "-v", "-s"]
     else:
-        curriculum_dir = ROOT / "tests" / curriculum
+        curriculum_dir = ROOT / "tests" / "curriculum" / curriculum
         if not curriculum_dir.is_dir():
             print(
-                f"{ERR_COLOR}Error: Curriculum directory not found: "
-                f"tests/{curriculum}{reset}",
+                f"{ERR_COLOR}Error: Curriculum directory not found: tests/curriculum/{curriculum}{reset}",
                 file=sys.stderr,
             )
             sys.exit(1)
 
         if not tier or tier == "all":
             # Run the full curriculum.
-            args = [f"tests/{curriculum}", "-v", "-s"]
+            args = [f"tests/curriculum/{curriculum}", "-v", "-s"]
         else:
             tier_dir = curriculum_dir / tier
             if not tier_dir.is_dir():
-                available = [d.name for d in curriculum_dir.iterdir() if d.is_dir() and not d.name.startswith("__")]
+                available = [
+                    d.name
+                    for d in curriculum_dir.iterdir()
+                    if d.is_dir() and not d.name.startswith("__")
+                ]
                 print(
-                    f"{ERR_COLOR}Error: Tier '{tier}' not found in tests/{curriculum}.\n"
+                    f"{ERR_COLOR}Error: Tier '{tier}' not found in tests/curriculum/{curriculum}.\n"
                     f"Available tiers: {', '.join(sorted(available))}{reset}",
                     file=sys.stderr,
                 )
@@ -132,13 +135,14 @@ def _resolve_target(
             else:
                 # Resolve lesson by exact name or leading-ID prefix.
                 matches = [
-                    d for d in tier_dir.iterdir()
+                    d
+                    for d in tier_dir.iterdir()
                     if d.is_dir() and (d.name == lesson or d.name.startswith(f"{lesson}_"))
                 ]
                 if not matches:
                     print(
                         f"{ERR_COLOR}Error: No lesson matching '{lesson}' found in "
-                        f"tests/{curriculum}/{tier}{reset}",
+                        f"tests/curriculum/{curriculum}/{tier}{reset}",
                         file=sys.stderr,
                     )
                     sys.exit(1)
@@ -186,6 +190,7 @@ def run_check(
         int: pytest return code (0 = all passed).
     """
     import os
+
     pytest_args = _resolve_target(curriculum, tier, lesson, method)
     mode_label = f"{WARN_COLOR}[Fast Mode]{reset} " if fast else ""
     print(f"{INFO_COLOR}{mode_label}Running: pytest {' '.join(pytest_args)}{reset}\n")
@@ -244,15 +249,15 @@ def run_status() -> int:
     passed_lessons = 0
 
     for curriculum_name in ["arraysmith", "tensorsmith", "hpcsmith"]:
-        tests_dir = ROOT / "tests" / curriculum_name
+        tests_dir = ROOT / "tests" / "curriculum" / curriculum_name
         if not tests_dir.is_dir():
             continue
 
         has_lessons = any(
-            (tests_dir / t).is_dir() and any(
-                d.is_dir() and not d.name.startswith("__") for d in (tests_dir / t).iterdir()
-            )
-            for t in ARRAYSMITH_TIERS if (tests_dir / t).is_dir()
+            (tests_dir / t).is_dir()
+            and any(d.is_dir() and not d.name.startswith("__") for d in (tests_dir / t).iterdir())
+            for t in ARRAYSMITH_TIERS
+            if (tests_dir / t).is_dir()
         )
         if not has_lessons:
             continue
@@ -265,10 +270,9 @@ def run_status() -> int:
             if not tier_dir.is_dir():
                 continue
 
-            lessons = sorted([
-                d for d in tier_dir.iterdir()
-                if d.is_dir() and not d.name.startswith("__")
-            ])
+            lessons = sorted(
+                [d for d in tier_dir.iterdir() if d.is_dir() and not d.name.startswith("__")]
+            )
             if not lessons:
                 continue
 
@@ -318,7 +322,7 @@ def run_generate(module: str, tier: str, lesson_name: str) -> int:
     """Dynamically scaffold a new lesson directory and mirror it in tests/.
 
     Creates the student workspace under ``<module>/<tier>/<lesson_name>/``
-    and the mirrored test workspace under ``tests/<module>/<tier>/<lesson_name>/``.
+    and the mirrored test workspace under ``tests/curriculum/<module>/<tier>/<lesson_name>/``.
     Generates ``student_code.py``, ``INSTRUCTION.md``, ``_baseline.py``, and
     ``test_XX.py`` from canonical templates.
 
@@ -331,12 +335,12 @@ def run_generate(module: str, tier: str, lesson_name: str) -> int:
         int: 0 on success, 1 if the directory already exists.
     """
     student_dir = ROOT / module / tier / lesson_name
-    test_dir = ROOT / "tests" / module / tier / lesson_name
+    test_dir = ROOT / "tests" / "curriculum" / module / tier / lesson_name
 
     if student_dir.exists() or test_dir.exists():
         print(
             f"{ERR_COLOR}Error: Lesson directory '{lesson_name}' already exists in "
-            f"{module}/{tier} or tests/{module}/{tier}.{reset}",
+            f"{module}/{tier} or tests/curriculum/{module}/{tier}.{reset}",
             file=sys.stderr,
         )
         return 1
@@ -357,8 +361,8 @@ def run_generate(module: str, tier: str, lesson_name: str) -> int:
         f"    @classmethod\n"
         f"    def example_method(cls):\n"
         f'        """Example method docstring."""\n'
-        f'        # Replace the line below with show_hint() if you need help.\n'
-        f'        raise NotImplementedError("Implement example_method()")\n',
+        f"        # Replace the line below with show_hint() if you need help.\n"
+        f'        raise NotImplementedError("TODO: Implement this function")\n',
         encoding="utf-8",
     )
 
@@ -409,7 +413,9 @@ def run_generate(module: str, tier: str, lesson_name: str) -> int:
         encoding="utf-8",
     )
 
-    print(f"{GREEN_COLOR}🎉 Successfully scaffolded lesson '{lesson_name}' in '{module}/{tier}'!{reset}\n")
+    print(
+        f"{GREEN_COLOR}🎉 Successfully scaffolded lesson '{lesson_name}' in '{module}/{tier}'!{reset}\n"
+    )
     print(f"  Created student workspace : {INFO_COLOR}{student_dir.relative_to(ROOT)}{reset}")
     print("    └─ INSTRUCTION.md")
     print("    └─ student_code.py")
@@ -474,13 +480,15 @@ def main() -> None:
         help="Optional specific method name to test (e.g. 'create_squared_range').",
     )
     check_parser.add_argument(
-        "--method", "-m",
+        "--method",
+        "-m",
         dest="method_flag",
         default=None,
         help="Optional specific method name to test (flag form).",
     )
     check_parser.add_argument(
-        "--fast", "-f",
+        "--fast",
+        "-f",
         action="store_true",
         default=False,
         help=(

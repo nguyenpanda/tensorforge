@@ -17,6 +17,8 @@ Run your tests with:
 
 import numpy as np
 
+from hint import show_hint  # noqa: F401
+
 
 class PropertiesReshaping:
     """Exercises for array metadata attributes and structural reshaping."""
@@ -45,7 +47,7 @@ class PropertiesReshaping:
             np.ndarray: 2-D array of shape (3, 4).
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement reshape_to_matrix()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
     def flatten_and_cast(cls, arr: np.ndarray) -> np.ndarray:
@@ -69,4 +71,4 @@ class PropertiesReshaping:
             np.ndarray: 1-D float64 array containing all elements in row-major order.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement flatten_and_cast()")
+        raise NotImplementedError("TODO: Implement this function")

@@ -74,8 +74,10 @@ try:
 
     _TORCH_AVAILABLE: bool = True
 except ImportError:
-    torch = None  # type: ignore[assignment]
-    _cpp_load = None  # type: ignore[assignment]
+    from unittest.mock import MagicMock
+
+    torch = MagicMock()  # type: ignore[assignment]
+    _cpp_load = MagicMock()  # type: ignore[assignment]
     _TORCH_AVAILABLE = False
 
 try:
@@ -225,9 +227,7 @@ class CudaJitBackend(ExecutionBackend):
             **kwargs: Keyword :class:`torch.Tensor` instances to supply to the kernel.
         """
         if self._cuda_available:
-            self._device_args = tuple(
-                t.cuda() if hasattr(t, "cuda") else t for t in args
-            )
+            self._device_args = tuple(t.cuda() if hasattr(t, "cuda") else t for t in args)
             self._device_kwargs = {
                 k: v.cuda() if hasattr(v, "cuda") else v for k, v in kwargs.items()
             }

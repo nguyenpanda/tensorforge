@@ -209,7 +209,9 @@ def _assert_outputs_equal(
             else:
                 np.testing.assert_array_equal(student_output, baseline_output)
         except AssertionError as exc:
-            pytest.fail(f"{_ERR}Output mismatch between your solution and the baseline:\n{exc}{reset}")
+            pytest.fail(
+                f"{_ERR}Output mismatch between your solution and the baseline:\n{exc}{reset}"
+            )
     else:
         assert student_output == baseline_output, (
             f"{_ERR}Output mismatch: got {student_output!r}, expected {baseline_output!r}{reset}"
@@ -273,8 +275,12 @@ def compare_and_benchmark(
         config = BenchmarkConfig()
 
     # Resolve backends: fall back to NumpyBackend when the caller did not supply one.
-    _student_backend = student_backend if student_backend is not None else NumpyBackend(fn=student_fn)
-    _baseline_backend = baseline_backend if baseline_backend is not None else NumpyBackend(fn=baseline_fn)
+    _student_backend = (
+        student_backend if student_backend is not None else NumpyBackend(fn=student_fn)
+    )
+    _baseline_backend = (
+        baseline_backend if baseline_backend is not None else NumpyBackend(fn=baseline_fn)
+    )
 
     # ------------------------------------------------------------------
     # Fast Mode bypass: single execution, correctness only, no profiling.

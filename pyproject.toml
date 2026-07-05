@@ -77,3 +77,15 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501", "E402", "SIM117", "B017"]
 
+[dependency-groups]
+dev = [
+    "types-requests>=2.33.0.20260518",
+    "types-tqdm>=4.68.0.20260608",
+]
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+
+[tool.uv.sources]
+forge-core = { path = "forge_core", editable = true }
+hint = { path = "hint", editable = true }

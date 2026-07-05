@@ -63,7 +63,10 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                 self.violations.append((True, custom))
             else:
                 self.violations.append(
-                    (False, f"Exceeded maximum allowed for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.")
+                    (
+                        False,
+                        f"Exceeded maximum allowed for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.",
+                    )
                 )
         self.generic_visit(node)
 
@@ -79,7 +82,10 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                 self.violations.append((True, custom))
             else:
                 self.violations.append(
-                    (False, f"Exceeded maximum allowed async for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.")
+                    (
+                        False,
+                        f"Exceeded maximum allowed async for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.",
+                    )
                 )
         self.generic_visit(node)
 
@@ -95,7 +101,10 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                 self.violations.append((True, custom))
             else:
                 self.violations.append(
-                    (False, f"Exceeded maximum allowed while-loops ({self.while_count} > {self.max_while_loops}) at line {node.lineno}.")
+                    (
+                        False,
+                        f"Exceeded maximum allowed while-loops ({self.while_count} > {self.max_while_loops}) at line {node.lineno}.",
+                    )
                 )
         self.generic_visit(node)
 
@@ -112,7 +121,10 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                         self.violations.append((True, custom))
                     else:
                         self.violations.append(
-                            (False, f"Forbidden module import '{alias.name}' detected at line {node.lineno}.")
+                            (
+                                False,
+                                f"Forbidden module import '{alias.name}' detected at line {node.lineno}.",
+                            )
                         )
         self.generic_visit(node)
 
@@ -129,7 +141,10 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                         self.violations.append((True, custom))
                     else:
                         self.violations.append(
-                            (False, f"Forbidden module import 'from {node.module}' detected at line {node.lineno}.")
+                            (
+                                False,
+                                f"Forbidden module import 'from {node.module}' detected at line {node.lineno}.",
+                            )
                         )
         self.generic_visit(node)
 
@@ -165,7 +180,10 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                         self.violations.append((True, custom))
                     else:
                         self.violations.append(
-                            (False, f"Forbidden function call '{call_name}' (matching rule '{forbidden}') detected at line {node.lineno}.")
+                            (
+                                False,
+                                f"Forbidden function call '{call_name}' (matching rule '{forbidden}') detected at line {node.lineno}.",
+                            )
                         )
         self.generic_visit(node)
 
@@ -176,13 +194,20 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                 if custom:
                     self.violations.append((True, custom))
                 else:
-                    self.violations.append((False, f"Required function call matching '{req}' was not found in the implementation."))
+                    self.violations.append(
+                        (
+                            False,
+                            f"Required function call matching '{req}' was not found in the implementation.",
+                        )
+                    )
 
 
 def _is_stub_node(node: ast.AST) -> bool:
     """Check if an AST node is just a stub containing only docstrings, pass, or raise NotImplementedError."""
     if isinstance(node, ast.Module):
-        if len(node.body) == 1 and isinstance(node.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if len(node.body) == 1 and isinstance(
+            node.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
             body = node.body[0].body
         else:
             body = node.body
@@ -238,7 +263,9 @@ def ast_policy(
             node_to_check: ast.AST | None = None
 
             if callable(target):
-                target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))
+                target_name = getattr(
+                    target, "__qualname__", getattr(target, "__name__", str(target))
+                )
                 try:
                     source = textwrap.dedent(inspect.getsource(target))
                     node_to_check = ast.parse(source)

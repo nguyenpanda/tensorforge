@@ -77,7 +77,7 @@ Execute your verification suite using the TensorForge CLI or pytest:
 
 ```bash
 # Run tests for Lesson 01
-uv run pytest tests/hpcsmith/intermediate/01_cuda_gemm/test_01.py -v -s
+uv run pytest tests/curriculum/hpcsmith/intermediate/01_cuda_gemm/test_01.py -v -s
 
 # Check using the TensorForge CLI
 tforge check hpcsmith intermediate 01

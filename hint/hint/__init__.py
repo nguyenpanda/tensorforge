@@ -42,7 +42,10 @@ from typing import Any
 from nguyenpanda.swan import c24, reset
 
 _GOLD = c24["ffd700"]
-def yellow(s: str) -> str: return f"{_GOLD}{s}{reset}"
+
+
+def yellow(s: str) -> str:
+    return f"{_GOLD}{s}{reset}"
 
 
 def _build_registry() -> dict[str, Any]:
@@ -186,8 +189,8 @@ def get_hint_str(deep: int = 1) -> tuple[dict[str, str], Path, str, str, str]:
     if not caller_path.is_file():
         raise FileNotFoundError(f"Could not locate the calling file: {caller_path}")
 
-    lesson_dir = caller_path.parent        # e.g. …/arraysmith/basic/01_array_creation
-    tier_dir = lesson_dir.parent           # e.g. …/arraysmith/basic
+    lesson_dir = caller_path.parent  # e.g. …/arraysmith/basic/01_array_creation
+    tier_dir = lesson_dir.parent  # e.g. …/arraysmith/basic
 
     # Build the composite key: "<tier>/<lesson_dir_name>"
     module_key = f"{tier_dir.name}/{lesson_dir.name}"
