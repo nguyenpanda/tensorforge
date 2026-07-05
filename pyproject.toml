@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-torch = ["torch>=2.0.0"]
-hpc   = ["scikit-build-core", "nanobind"]
+torch = ["torch>=2.0.0", "torchvision>=0.15.0"]
+hpc   = ["scikit-build-core", "nanobind", "ninja"]
 dev   = [
     "mypy>=1.15.0",
     "pytest>=9.1.1",
@@ -32,10 +32,6 @@ dev   = [
 
 [project.scripts]
 tforge = "main:main"
-
-[tool.uv.sources]
-forge-core = { path = "./forge_core", editable = true }
-hint = { path = "./hint", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -53,6 +49,8 @@ exclude = [
     "^tensorsmith/.*",
     "^hpcsmith/.*",
     "^tests/(arraysmith|tensorsmith|hpcsmith)/.*",
+    "^\\.venv/.*",
+    "^trash_venv_.*",
 ]
 
 [[tool.mypy.overrides]]
@@ -78,3 +76,4 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501", "E402", "SIM117", "B017"]
+

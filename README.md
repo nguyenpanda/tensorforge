@@ -54,7 +54,7 @@ tensorforge/
 │   ├── advanced/
 │   │   └── 01_memory_layout/
 │   └── applications/          ← Future end-to-end project lessons
-├── tensorsmith/               ← PyTorch curriculum (requires: uv sync --extra torch)
+├── tensorsmith/               ← PyTorch curriculum (requires AI Models option via bootstrap.py)
 │   └── basic/                 ← Foundational PyTorch neural network & tensor lessons
 ├── hpcsmith/                  ← High-Performance Computing & C++/CUDA kernel curriculum
 │   ├── basic/
@@ -95,24 +95,28 @@ tensorforge/
 
 ---
 
-## 📋 Prerequisites & Installation
+## 📋 Installation & Setup
 
 Ensure you have Python 3.12+ and `uv` installed ([installation guide](https://docs.astral.sh/uv/getting-started/installation/)).
 
+To initialize the TensorForge project, the ONLY command you need to run is:
+
 ```bash
-# 1. Clone the repository and sync the virtual environment (core dependencies only)
+# 1. Clone the repository and navigate into it
 git clone <repository-url>
 cd tensorforge
-uv sync
 
-# 2. Install optional PyTorch dependency (required for tensorsmith)
-uv sync --extra torch
+# 2. Run the multi-platform interactive bootstrap script
+python bootstrap.py
 
 # 3. Verify project health and infrastructure integrity
 tforge validate
 ```
 
-Running `uv sync` installs the core environment: NumPy, pytest, matplotlib, seaborn, and `nguyenpanda.swan`. PyTorch is an **optional extra** that does not pollute the core install.
+The interactive `bootstrap.py` script automatically configures your environment by handling:
+- **NFS & Storage Bottlenecks:** Automatically detects shared network file systems (NFS) and creates a local virtual environment in `/tmp` securely symlinked to `./.venv`, eliminating degraded I/O and hardlink failures.
+- **OS Sanity & Hardware Detection:** Strictly enforces supported operating systems (Linux, macOS, WSL2; explicitly forbidding Windows) and checks for Python 3.12+.
+- **Dynamic PyTorch & CUDA Resolution:** Detects NVIDIA GPUs via `nvidia-smi` or Apple Silicon MPS architectures, automatically resolving and applying the correct CUDA index URLs ($12.6, 12.4, 12.1, 11.8$) or CPU/MPS wheels based on your selected learning path (`arraysmith`, `tensorsmith`, or `hpcsmith`).
 
 ---
 
@@ -134,7 +138,7 @@ tforge check arraysmith advanced 01
 tforge check arraysmith basic 01 --fast
 tforge check arraysmith basic 01 -f
 
-# Check a PyTorch tensorsmith lesson (requires: uv sync --extra torch)
+# Check a PyTorch tensorsmith lesson (requires AI Models option via bootstrap.py)
 tforge check tensorsmith basic 01
 tforge check tensorsmith basic 01 --fast
 
