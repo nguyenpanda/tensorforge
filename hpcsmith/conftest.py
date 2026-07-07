@@ -9,6 +9,7 @@ extra has not been installed, or where no C++/CUDA compiler or GPU is detected.
 
 from __future__ import annotations
 
+import os
 import shutil
 
 import pytest
@@ -20,6 +21,18 @@ torch = pytest.importorskip(
         "Run `uv sync --extra torch` to enable hpcsmith tests."
     ),
 )
+
+if "TORCH_CUDA_ARCH_LIST" not in os.environ and torch.cuda.is_available():
+    try:
+        archs = {
+            f"{cap[0]}.{cap[1]}"
+            for i in range(torch.cuda.device_count())
+            for cap in [torch.cuda.get_device_capability(i)]
+        }
+        if archs:
+            os.environ["TORCH_CUDA_ARCH_LIST"] = ";".join(sorted(archs))
+    except Exception:
+        pass
 
 
 def _has_cpp_compiler() -> bool:

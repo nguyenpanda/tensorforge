@@ -10,6 +10,7 @@ required calls before execution or benchmarking occurs.
 
 from __future__ import annotations
 
+import abc
 import ast
 import contextlib
 import functools
@@ -37,146 +38,148 @@ class PolicyViolationError(SyntaxError):
             self.lineno = lineno
 
 
-class ASTPolicyVisitor(ast.NodeVisitor):
-    """AST Visitor that traverses syntax trees checking against defined rules."""
+class VisitorContext:
+    """Context state maintained during AST traversal."""
+
+    def __init__(self) -> None:
+        self.in_function_depth: int = 0
+
+
+class PolicyRule(abc.ABC):
+    """Abstract base class for all AST policy inspection rules."""
+
+    def __init__(self, feedback: dict[str, str] | None = None) -> None:
+        self.feedback: dict[str, str] = feedback or {}
+        self.violations: list[tuple[bool, str, int | None]] = []
+
+    @abc.abstractmethod
+    def target_node_types(self) -> tuple[type[ast.AST], ...]:
+        """Return the AST node types inspected by this rule."""
+
+    @abc.abstractmethod
+    def inspect_node(self, node: ast.AST, context: VisitorContext) -> None:
+        """Inspect an AST node and record any policy violations."""
+
+    def check_post_traversal(self) -> None:  # noqa: B027
+        """Perform any required post-traversal validation checks."""
+        pass
+
+
+def _resolve_call_name(func_node: ast.AST) -> str:
+    if isinstance(func_node, ast.Name):
+        return func_node.id
+    elif isinstance(func_node, ast.Attribute):
+        val_name = _resolve_call_name(func_node.value)
+        return f"{val_name}.{func_node.attr}" if val_name else func_node.attr
+    return ""
+
+
+def _call_matches(actual: str, pattern: str) -> bool:
+    if not actual or not pattern:
+        return False
+    if actual == pattern:
+        return True
+    pattern_attr = pattern.split(".")[-1]
+    actual_attr = actual.split(".")[-1]
+    return pattern_attr == actual_attr
+
+
+class ForbidLoopsRule(PolicyRule):
+    """Rule forbidding execution loops beyond defined maximum thresholds."""
 
     def __init__(
         self,
         max_for_loops: int = 0,
         max_while_loops: int = 0,
-        forbid_imports: Sequence[str] | None = None,
-        require_calls: Sequence[str] | None = None,
-        forbid_calls: Sequence[str] | None = None,
-        forbid_function_imports: bool = False,
-        forbid_hardcoded_literals: bool = False,
         feedback: dict[str, str] | None = None,
-    ):
+    ) -> None:
+        super().__init__(feedback)
         self.max_for_loops = max_for_loops
         self.max_while_loops = max_while_loops
-        self.forbid_imports = set(forbid_imports or [])
-        self.require_calls = set(require_calls or [])
-        self.forbid_calls = set(forbid_calls or [])
-        self.forbid_function_imports = forbid_function_imports
-        self.forbid_hardcoded_literals = forbid_hardcoded_literals
-        self.feedback = feedback or {}
-
         self.for_count = 0
         self.while_count = 0
-        self.found_calls: set[str] = set()
-        self.violations: list[tuple[bool, str, int | None]] = []
-        self._in_function_depth = 0
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
-        self._in_function_depth += 1
-        self.generic_visit(node)
-        self._in_function_depth -= 1
+    def target_node_types(self) -> tuple[type[ast.AST], ...]:
+        return (ast.For, ast.AsyncFor, ast.While)
 
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
-        self._in_function_depth += 1
-        self.generic_visit(node)
-        self._in_function_depth -= 1
-
-    def visit_For(self, node: ast.For) -> Any:
-        self.for_count += 1
-        if self.for_count > self.max_for_loops:
-            custom = (
-                self.feedback.get("max_for_loops")
-                or self.feedback.get("for_loops")
-                or self.feedback.get("for")
-            )
-            if custom:
-                self.violations.append((True, custom, node.lineno))
-            else:
-                self.violations.append(
-                    (
-                        False,
-                        f"Exceeded maximum allowed for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.",
-                        node.lineno,
-                    )
+    def inspect_node(self, node: ast.AST, context: VisitorContext) -> None:
+        if isinstance(node, (ast.For, ast.AsyncFor)):
+            self.for_count += 1
+            if self.for_count > self.max_for_loops:
+                custom = (
+                    self.feedback.get("max_for_loops")
+                    or self.feedback.get("for_loops")
+                    or self.feedback.get("for")
                 )
-        self.generic_visit(node)
-
-    def visit_AsyncFor(self, node: ast.AsyncFor) -> Any:
-        self.for_count += 1
-        if self.for_count > self.max_for_loops:
-            custom = (
-                self.feedback.get("max_for_loops")
-                or self.feedback.get("for_loops")
-                or self.feedback.get("for")
-            )
-            if custom:
-                self.violations.append((True, custom, node.lineno))
-            else:
-                self.violations.append(
-                    (
-                        False,
-                        f"Exceeded maximum allowed async for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.",
-                        node.lineno,
-                    )
-                )
-        self.generic_visit(node)
-
-    def visit_While(self, node: ast.While) -> Any:
-        self.while_count += 1
-        if self.while_count > self.max_while_loops:
-            custom = (
-                self.feedback.get("max_while_loops")
-                or self.feedback.get("while_loops")
-                or self.feedback.get("while")
-            )
-            if custom:
-                self.violations.append((True, custom, node.lineno))
-            else:
-                self.violations.append(
-                    (
-                        False,
-                        f"Exceeded maximum allowed while-loops ({self.while_count} > {self.max_while_loops}) at line {node.lineno}.",
-                        node.lineno,
-                    )
-                )
-        self.generic_visit(node)
-
-    def visit_Import(self, node: ast.Import) -> Any:
-        if self.forbid_function_imports and self._in_function_depth > 0:
-            custom = self.feedback.get("forbid_function_imports") or self.feedback.get(
-                "no_function_imports"
-            )
-            msg = (
-                custom
-                or f"Forbidden import inside function body at line {node.lineno}. Clean Lab forbids local function imports."
-            )
-            self.violations.append((bool(custom), msg, node.lineno))
-        for alias in node.names:
-            for forbidden in self.forbid_imports:
-                if alias.name == forbidden or alias.name.startswith(f"{forbidden}."):
-                    custom = (
-                        self.feedback.get(alias.name)
-                        or self.feedback.get(forbidden)
-                        or self.feedback.get("forbid_imports")
-                    )
-                    if custom:
-                        self.violations.append((True, custom, node.lineno))
-                    else:
-                        self.violations.append(
-                            (
-                                False,
-                                f"Forbidden module import '{alias.name}' detected at line {node.lineno}.",
-                                node.lineno,
-                            )
+                lineno = getattr(node, "lineno", None)
+                if custom:
+                    self.violations.append((True, custom, lineno))
+                else:
+                    loop_type = "async for-loops" if isinstance(node, ast.AsyncFor) else "for-loops"
+                    self.violations.append(
+                        (
+                            False,
+                            f"Exceeded maximum allowed {loop_type} ({self.for_count} > {self.max_for_loops}) at line {lineno}.",
+                            lineno,
                         )
-        self.generic_visit(node)
+                    )
+        elif isinstance(node, ast.While):
+            self.while_count += 1
+            if self.while_count > self.max_while_loops:
+                custom = (
+                    self.feedback.get("max_while_loops")
+                    or self.feedback.get("while_loops")
+                    or self.feedback.get("while")
+                )
+                lineno = getattr(node, "lineno", None)
+                if custom:
+                    self.violations.append((True, custom, lineno))
+                else:
+                    self.violations.append(
+                        (
+                            False,
+                            f"Exceeded maximum allowed while-loops ({self.while_count} > {self.max_while_loops}) at line {lineno}.",
+                            lineno,
+                        )
+                    )
 
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> Any:
-        if self.forbid_function_imports and self._in_function_depth > 0:
-            custom = self.feedback.get("forbid_function_imports") or self.feedback.get(
-                "no_function_imports"
-            )
-            msg = (
-                custom
-                or f"Forbidden import inside function body at line {node.lineno}. Clean Lab forbids local function imports."
-            )
-            self.violations.append((bool(custom), msg, node.lineno))
-        if node.module:
+
+class ForbidImportsRule(PolicyRule):
+    """Rule forbidding import of specified modules or packages."""
+
+    def __init__(
+        self,
+        forbid_imports: set[str] | None = None,
+        feedback: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(feedback)
+        self.forbid_imports = forbid_imports or set()
+
+    def target_node_types(self) -> tuple[type[ast.AST], ...]:
+        return (ast.Import, ast.ImportFrom)
+
+    def inspect_node(self, node: ast.AST, context: VisitorContext) -> None:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                for forbidden in self.forbid_imports:
+                    if alias.name == forbidden or alias.name.startswith(f"{forbidden}."):
+                        custom = (
+                            self.feedback.get(alias.name)
+                            or self.feedback.get(forbidden)
+                            or self.feedback.get("forbid_imports")
+                        )
+                        lineno = getattr(node, "lineno", None)
+                        if custom:
+                            self.violations.append((True, custom, lineno))
+                        else:
+                            self.violations.append(
+                                (
+                                    False,
+                                    f"Forbidden module import '{alias.name}' detected at line {lineno}.",
+                                    lineno,
+                                )
+                            )
+        elif isinstance(node, ast.ImportFrom) and node.module:
             for forbidden in self.forbid_imports:
                 if node.module == forbidden or node.module.startswith(f"{forbidden}."):
                     custom = (
@@ -184,99 +187,108 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                         or self.feedback.get(forbidden)
                         or self.feedback.get("forbid_imports")
                     )
+                    lineno = getattr(node, "lineno", None)
                     if custom:
-                        self.violations.append((True, custom, node.lineno))
+                        self.violations.append((True, custom, lineno))
                     else:
                         self.violations.append(
                             (
                                 False,
-                                f"Forbidden module import 'from {node.module}' detected at line {node.lineno}.",
-                                node.lineno,
+                                f"Forbidden module import 'from {node.module}' detected at line {lineno}.",
+                                lineno,
                             )
                         )
-        self.generic_visit(node)
 
-    def _resolve_call_name(self, func_node: ast.AST) -> str:
-        if isinstance(func_node, ast.Name):
-            return func_node.id
-        elif isinstance(func_node, ast.Attribute):
-            val_name = self._resolve_call_name(func_node.value)
-            return f"{val_name}.{func_node.attr}" if val_name else func_node.attr
-        return ""
 
-    def _call_matches(self, actual: str, pattern: str) -> bool:
-        if not actual or not pattern:
-            return False
-        if actual == pattern:
-            return True
-        pattern_attr = pattern.split(".")[-1]
-        actual_attr = actual.split(".")[-1]
-        return pattern_attr == actual_attr
+class ForbidFunctionImportsRule(PolicyRule):
+    """Rule forbidding local imports inside function definitions."""
 
-    def visit_Call(self, node: ast.Call) -> Any:
-        call_name = self._resolve_call_name(node.func)
-        if call_name:
-            self.found_calls.add(call_name)
-            for forbidden in self.forbid_calls:
-                if self._call_matches(call_name, forbidden):
-                    custom = (
-                        self.feedback.get(call_name)
-                        or self.feedback.get(forbidden)
-                        or self.feedback.get("forbid_calls")
-                    )
-                    if custom:
-                        self.violations.append((True, custom, node.lineno))
-                    else:
-                        self.violations.append(
-                            (
-                                False,
-                                f"Forbidden function call '{call_name}' (matching rule '{forbidden}') detected at line {node.lineno}.",
-                                node.lineno,
-                            )
-                        )
-        self.generic_visit(node)
+    def __init__(
+        self,
+        forbid_function_imports: bool = False,
+        feedback: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(feedback)
+        self.forbid_function_imports = forbid_function_imports
 
-    def visit_Constant(self, node: ast.Constant) -> Any:
-        if (
-            self.forbid_hardcoded_literals
-            and isinstance(node.value, (int, float, complex))
-            and not isinstance(node.value, bool)
-            and node.value not in (0, 1, -1, 0.0, 1.0, -1.0)
-        ):
-            custom = self.feedback.get("forbid_hardcoded_literals") or self.feedback.get(
-                "no_hardcoded_literals"
+    def target_node_types(self) -> tuple[type[ast.AST], ...]:
+        return (ast.Import, ast.ImportFrom)
+
+    def inspect_node(self, node: ast.AST, context: VisitorContext) -> None:
+        if self.forbid_function_imports and context.in_function_depth > 0:
+            custom = self.feedback.get("forbid_function_imports") or self.feedback.get(
+                "no_function_imports"
             )
+            lineno = getattr(node, "lineno", None)
             msg = (
                 custom
-                or f"Forbidden hardcoded numeric literal '{node.value}' at line {node.lineno}. Require mathematical constants or parameters."
+                or f"Forbidden import inside function body at line {lineno}. Clean Lab forbids local function imports."
             )
-            self.violations.append((bool(custom), msg, getattr(node, "lineno", None)))
-        self.generic_visit(node)
+            self.violations.append((bool(custom), msg, lineno))
 
-    def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
-        if (
-            self.forbid_hardcoded_literals
-            and isinstance(node.op, ast.USub)
-            and isinstance(node.operand, ast.Constant)
-            and isinstance(node.operand.value, (int, float))
-            and not isinstance(node.operand.value, bool)
-        ):
-            val = -node.operand.value
-            if val not in (0, 1, -1, 0.0, 1.0, -1.0):
-                custom = self.feedback.get("forbid_hardcoded_literals") or self.feedback.get(
-                    "no_hardcoded_literals"
-                )
-                msg = (
-                    custom
-                    or f"Forbidden hardcoded numeric literal '{val}' at line {node.lineno}. Require mathematical constants or parameters."
-                )
-                self.violations.append((bool(custom), msg, getattr(node, "lineno", None)))
-            return
-        self.generic_visit(node)
 
-    def check_requirements(self) -> None:
+class ForbidCallsRule(PolicyRule):
+    """Rule forbidding execution of specified function or method calls."""
+
+    def __init__(
+        self,
+        forbid_calls: set[str] | None = None,
+        feedback: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(feedback)
+        self.forbid_calls = forbid_calls or set()
+
+    def target_node_types(self) -> tuple[type[ast.AST], ...]:
+        return (ast.Call,)
+
+    def inspect_node(self, node: ast.AST, context: VisitorContext) -> None:
+        if isinstance(node, ast.Call):
+            call_name = _resolve_call_name(node.func)
+            if call_name:
+                for forbidden in self.forbid_calls:
+                    if _call_matches(call_name, forbidden):
+                        custom = (
+                            self.feedback.get(call_name)
+                            or self.feedback.get(forbidden)
+                            or self.feedback.get("forbid_calls")
+                        )
+                        lineno = getattr(node, "lineno", None)
+                        if custom:
+                            self.violations.append((True, custom, lineno))
+                        else:
+                            self.violations.append(
+                                (
+                                    False,
+                                    f"Forbidden function call '{call_name}' (matching rule '{forbidden}') detected at line {lineno}.",
+                                    lineno,
+                                )
+                            )
+
+
+class RequireCallsRule(PolicyRule):
+    """Rule requiring execution of specified function or method calls."""
+
+    def __init__(
+        self,
+        require_calls: set[str] | None = None,
+        feedback: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(feedback)
+        self.require_calls = require_calls or set()
+        self.found_calls: set[str] = set()
+
+    def target_node_types(self) -> tuple[type[ast.AST], ...]:
+        return (ast.Call,)
+
+    def inspect_node(self, node: ast.AST, context: VisitorContext) -> None:
+        if isinstance(node, ast.Call):
+            call_name = _resolve_call_name(node.func)
+            if call_name:
+                self.found_calls.add(call_name)
+
+    def check_post_traversal(self) -> None:
         for req in self.require_calls:
-            if not any(self._call_matches(actual, req) for actual in self.found_calls):
+            if not any(_call_matches(actual, req) for actual in self.found_calls):
                 custom = self.feedback.get(req) or self.feedback.get("require_calls")
                 if custom:
                     self.violations.append((True, custom, None))
@@ -290,8 +302,124 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                     )
 
 
+class ForbidHardcodedLiteralsRule(PolicyRule):
+    """Rule forbidding hardcoded numeric literals in arithmetic calculations."""
+
+    def __init__(
+        self,
+        forbid_hardcoded_literals: bool = False,
+        feedback: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(feedback)
+        self.forbid_hardcoded_literals = forbid_hardcoded_literals
+
+    def target_node_types(self) -> tuple[type[ast.AST], ...]:
+        return (ast.Constant, ast.UnaryOp)
+
+    def inspect_node(self, node: ast.AST, context: VisitorContext) -> None:
+        if not self.forbid_hardcoded_literals:
+            return
+        if isinstance(node, ast.Constant):
+            if (
+                isinstance(node.value, (int, float, complex))
+                and not isinstance(node.value, bool)
+                and node.value not in (0, 1, -1, 0.0, 1.0, -1.0)
+            ):
+                custom = self.feedback.get("forbid_hardcoded_literals") or self.feedback.get(
+                    "no_hardcoded_literals"
+                )
+                lineno = getattr(node, "lineno", None)
+                msg = (
+                    custom
+                    or f"Forbidden hardcoded numeric literal '{node.value}' at line {lineno}. Require mathematical constants or parameters."
+                )
+                self.violations.append((bool(custom), msg, lineno))
+        elif (
+            isinstance(node, ast.UnaryOp)
+            and isinstance(node.op, ast.USub)
+            and isinstance(node.operand, ast.Constant)
+            and isinstance(node.operand.value, (int, float))
+            and not isinstance(node.operand.value, bool)
+        ):
+            val = -node.operand.value
+            if val not in (0, 1, -1, 0.0, 1.0, -1.0):
+                custom = self.feedback.get("forbid_hardcoded_literals") or self.feedback.get(
+                    "no_hardcoded_literals"
+                )
+                lineno = getattr(node, "lineno", None)
+                msg = (
+                    custom
+                    or f"Forbidden hardcoded numeric literal '{val}' at line {lineno}. Require mathematical constants or parameters."
+                )
+                self.violations.append((bool(custom), msg, lineno))
+
+
+class ASTPolicyVisitor(ast.NodeVisitor):
+    """AST Visitor that traverses syntax trees checking against defined policy rules."""
+
+    def __init__(
+        self,
+        max_for_loops: int = 0,
+        max_while_loops: int = 0,
+        forbid_imports: Sequence[str] | None = None,
+        require_calls: Sequence[str] | None = None,
+        forbid_calls: Sequence[str] | None = None,
+        forbid_function_imports: bool = False,
+        forbid_hardcoded_literals: bool = False,
+        feedback: dict[str, str] | None = None,
+    ):
+        self.feedback = feedback or {}
+        self.context = VisitorContext()
+        self.rules: list[PolicyRule] = [
+            ForbidLoopsRule(max_for_loops, max_while_loops, self.feedback),
+            ForbidImportsRule(set(forbid_imports or []), self.feedback),
+            ForbidFunctionImportsRule(forbid_function_imports, self.feedback),
+            ForbidCallsRule(set(forbid_calls or []), self.feedback),
+            RequireCallsRule(set(require_calls or []), self.feedback),
+            ForbidHardcodedLiteralsRule(forbid_hardcoded_literals, self.feedback),
+        ]
+        self._dispatch_map: dict[type[ast.AST], list[PolicyRule]] = {}
+        for rule in self.rules:
+            for node_type in rule.target_node_types():
+                self._dispatch_map.setdefault(node_type, []).append(rule)
+
+    @property
+    def violations(self) -> list[tuple[bool, str, int | None]]:
+        res: list[tuple[bool, str, int | None]] = []
+        for rule in self.rules:
+            res.extend(rule.violations)
+        return res
+
+    def check_requirements(self) -> None:
+        for rule in self.rules:
+            rule.check_post_traversal()
+
+    def _dispatch(self, node: ast.AST) -> None:
+        node_type = type(node)
+        rules = self._dispatch_map.get(node_type)
+        if rules is None:
+            rules = [rule for rule in self.rules if isinstance(node, rule.target_node_types())]
+            self._dispatch_map[node_type] = rules
+        for rule in rules:
+            rule.inspect_node(node, self.context)
+
+    def visit(self, node: ast.AST) -> Any:
+        self._dispatch(node)
+        return super().visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        self.context.in_function_depth += 1
+        self.generic_visit(node)
+        self.context.in_function_depth -= 1
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
+        self.context.in_function_depth += 1
+        self.generic_visit(node)
+        self.context.in_function_depth -= 1
+
+
 def _is_stub_node(node: ast.AST) -> bool:
-    """Check if an AST node is just a stub containing only docstrings, pass, or raise NotImplementedError."""
+    """Check if an AST node is a stub containing only docstrings, pass, or raise NotImplementedError."""
     if isinstance(node, ast.Module):
         if len(node.body) == 1 and isinstance(
             node.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)

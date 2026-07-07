@@ -136,6 +136,19 @@ class BenchmarkResult(NamedTuple):
     baseline_peak_kb: float = 0.0
 
 
+def _sync_hardware() -> None:
+    """Synchronize GPU/accelerator hardware (CUDA or Apple Silicon Metal/MPS) if available."""
+    try:
+        import torch  # type: ignore[import-untyped]
+
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.synchronize()
+    except Exception:
+        pass
+
+
 def _time_function(fn: Callable[[], Any], n_runs: int) -> tuple[float, float, Any]:
     """Execute *fn* once for output capture and memory tracing, then time it over *n_runs* repeats.
 
@@ -148,11 +161,19 @@ def _time_function(fn: Callable[[], Any], n_runs: int) -> tuple[float, float, An
     """
     tracemalloc.start()
     output = fn()
+    _sync_hardware()
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     peak_kb = peak / 1024.0
 
-    elapsed = timeit.timeit(fn, number=n_runs)
+    _sync_hardware()
+    start_time = timeit.default_timer()
+    for _ in range(n_runs):
+        fn()
+    _sync_hardware()
+    end_time = timeit.default_timer()
+
+    elapsed = end_time - start_time
     return elapsed / n_runs, peak_kb, output
 
 

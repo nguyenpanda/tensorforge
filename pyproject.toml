@@ -85,8 +85,19 @@ dev = [
 ]
 
 [tool.uv]
-index-strategy = "unsafe-best-match"
+index-strategy = "unsafe-first-match"
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
 
 [tool.uv.sources]
 forge-core = { path = "forge_core", editable = true }
 hint = { path = "hint", editable = true }
+torch = [
+    { index = "pytorch", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+    { index = "pytorch", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]

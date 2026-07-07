@@ -69,12 +69,8 @@ def _mock_path_cls(exists: bool = True) -> MagicMock:
     Returns:
         MagicMock: A callable mock that produces a path-like object.
     """
-    mock_path_instance = MagicMock()
-    mock_path_instance.exists.return_value = exists
-    mock_path_instance.resolve.return_value = mock_path_instance
-    mock_path_instance.__str__ = lambda self: getattr(self, "_source_repr", "<mock_path>")  # type: ignore[method-assign,misc,assignment]
-
     mock_path_cls = MagicMock(side_effect=lambda s: _make_path_instance(s, exists))
+    mock_path_cls.home.return_value = _make_path_instance("/mock_home", exists)
     return mock_path_cls
 
 
@@ -84,6 +80,7 @@ def _make_path_instance(source: str, exists: bool) -> MagicMock:
     instance.exists.return_value = exists
     instance.resolve.return_value = instance
     instance.__str__ = lambda self: source  # type: ignore[method-assign,misc,assignment]
+    instance.__truediv__ = lambda self, other: _make_path_instance(f"{source}/{other}", exists)
     return instance
 
 
@@ -158,7 +155,7 @@ class TestCudaJitBackendConstruction:
         with (
             patch("forge_core.backends.cuda_backend.torch.cuda.is_available", return_value=True),
             patch("forge_core.backends.cuda_backend._cpp_load", mock_load),
-            patch("forge_core.backends.cuda_backend.Path", side_effect=_make_path_instance_exists),
+            patch("forge_core.backends.cuda_backend.Path", new=_mock_path_cls(True)),
         ):
             CudaJitBackend(
                 source_path="/fake/kernel.cu",
@@ -169,6 +166,7 @@ class TestCudaJitBackendConstruction:
         mock_load.assert_called_once_with(
             name="test_mod",
             sources=["/fake/kernel.cu"],
+            build_directory="/mock_home/.cache/tensorforge/jit/test_mod",
             verbose=False,
         )
 
@@ -184,7 +182,7 @@ class TestCudaJitBackendConstruction:
         with (
             patch("forge_core.backends.cuda_backend.torch.cuda.is_available", return_value=True),
             patch("forge_core.backends.cuda_backend._cpp_load", mock_load),
-            patch("forge_core.backends.cuda_backend.Path", side_effect=_make_path_instance_exists),
+            patch("forge_core.backends.cuda_backend.Path", new=_mock_path_cls(True)),
             patch.dict("os.environ", {"TFORGE_DEBUG_CPP": "1"}),
         ):
             CudaJitBackend(
@@ -196,6 +194,7 @@ class TestCudaJitBackendConstruction:
         mock_load.assert_called_once_with(
             name="test_asan_mod",
             sources=["/fake/kernel.cu"],
+            build_directory="/mock_home/.cache/tensorforge/jit/test_asan_mod",
             extra_cflags=["-fsanitize=address", "-fno-omit-frame-pointer", "-g"],
             extra_ldflags=["-fsanitize=address"],
             verbose=False,
@@ -659,3 +658,23 @@ class TestCudaJitBackendSafetyAndCaching:
 
         sentinel_kwarg.cuda.assert_called_once()
         mock_kernel.assert_called_with(alpha=sentinel_kwarg)
+
+    def test_jit_compilation_uses_cache_dir_and_lock(self) -> None:
+        """Verify build_directory is in ~/.cache/tensorforge/jit and lock file is acquired."""
+        from forge_core.backends.cuda_backend import CudaJitBackend
+
+        mock_module = MagicMock()
+        mock_module.fn = MagicMock()
+        mock_load = MagicMock(return_value=mock_module)
+
+        with (
+            patch("forge_core.backends.cuda_backend.torch.cuda.is_available", return_value=True),
+            patch("forge_core.backends.cuda_backend._cpp_load", mock_load),
+            patch("forge_core.backends.cuda_backend.Path", new=_mock_path_cls(True)),
+        ):
+            CudaJitBackend("/src.cu", "lock_mod", "fn")
+
+        mock_load.assert_called_once()
+        kwargs = mock_load.call_args[1]
+        assert "build_directory" in kwargs
+        assert ".cache/tensorforge/jit" in str(kwargs["build_directory"])

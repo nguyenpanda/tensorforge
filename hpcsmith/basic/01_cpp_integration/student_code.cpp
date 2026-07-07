@@ -9,7 +9,8 @@
 
 /// Returns the element-wise sum of \p a and \p b via ATen's operator+.
 torch::Tensor add_tensors(torch::Tensor a, torch::Tensor b) {
-    throw std::runtime_error("TODO: Implement this C++ function");
+    //  This is just an example to make sure the C++ integration works.
+    return a + b;
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {

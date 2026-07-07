@@ -37,10 +37,10 @@ class DatasetManager:
 
         Args:
             cache_dir: Optional custom directory for caching downloaded files.
-                Defaults to ``./.tensorforge_datasets/`` relative to current working directory.
+                Defaults to ~/.cache/tensorforge/datasets/.
         """
         if cache_dir is None:
-            self.cache_dir = Path.cwd() / ".tensorforge_datasets"
+            self.cache_dir = Path.home() / ".cache" / "tensorforge" / "datasets"
         else:
             self.cache_dir = Path(cache_dir).resolve()
 
@@ -67,9 +67,10 @@ class DatasetManager:
             requests.RequestException: On network errors during download.
         """
         if not filename:
-            filename = url.split("/")[-1]
-            if not filename or filename == "/":
+            derived = url.split("/")[-1].split("?")[0]
+            if not derived or derived in (".", ".."):
                 raise ValueError(f"Could not derive valid filename from URL: {url}")
+            filename = derived
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         final_path = self.cache_dir / filename
@@ -93,6 +94,7 @@ class DatasetManager:
             response.raise_for_status()
             total_size = int(response.headers.get("content-length", 0))
 
+            bytes_written = 0
             with (
                 open(tmp_path, "wb") as f,
                 tqdm(
@@ -106,7 +108,14 @@ class DatasetManager:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
+                        bytes_written += len(chunk)
                         pbar.update(len(chunk))
+
+            if total_size > 0 and bytes_written != total_size:
+                tmp_path.unlink(missing_ok=True)
+                raise requests.RequestException(
+                    f"Incomplete download for {filename}: expected {total_size} bytes, got {bytes_written} bytes."
+                )
 
             if expected_sha256 is not None and not self.verify_checksum(tmp_path, expected_sha256):
                 tmp_path.unlink(missing_ok=True)

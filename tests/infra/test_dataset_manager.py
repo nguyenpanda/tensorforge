@@ -29,7 +29,7 @@ class TestDatasetManager:
 
     def test_init_default_cache(self) -> None:
         dm = DatasetManager()
-        assert dm.cache_dir == Path.cwd() / ".tensorforge_datasets"
+        assert dm.cache_dir == Path.home() / ".cache" / "tensorforge" / "datasets"
 
     def test_init_custom_cache(self, temp_cache: Path) -> None:
         dm = DatasetManager(temp_cache)

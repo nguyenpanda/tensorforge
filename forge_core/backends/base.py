@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 
 class ExecutionBackend(ABC):
@@ -111,11 +111,11 @@ class ExecutionBackend(ABC):
     # Context manager protocol — guarantees teardown on exception.
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> ExecutionBackend:
+    def __enter__(self) -> Self:
         """Invoke ``setup`` and ``warmup``; return ``self`` for use in ``with`` blocks.
 
         Returns:
-            ExecutionBackend: The backend instance after initialisation.
+            Self: The backend instance after initialisation.
         """
         self.setup()
         self.warmup()
