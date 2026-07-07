@@ -37,8 +37,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib
+import importlib.util
+import inspect
 import sys
+import textwrap
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -58,23 +62,38 @@ from nguyenpanda.swan import c24, reset
 
 from forge_core.benchmark import BenchmarkConfig, BenchmarkResult, compare_and_benchmark
 
-_GREEN  = c24["00ff87"]
-_RED    = c24["ff5f5f"]
+_GREEN = c24["00ff87"]
+_RED = c24["ff5f5f"]
 _YELLOW = c24["ffd700"]
-_CYAN   = c24["00d7ff"]
-_BOLD   = "\033[1m"
-_RESET  = reset
+_CYAN = c24["00d7ff"]
+_BOLD = "\033[1m"
+_RESET = reset
 
-def _green(s: str)  -> str: return f"{_GREEN}{s}{_RESET}"
-def _red(s: str)    -> str: return f"{_RED}{s}{_RESET}"
-def _yellow(s: str) -> str: return f"{_YELLOW}{s}{_RESET}"
-def _cyan(s: str)   -> str: return f"{_CYAN}{s}{_RESET}"
-def _bold(s: str)   -> str: return f"{_BOLD}{s}{_RESET}"
+
+def _green(s: str) -> str:
+    return f"{_GREEN}{s}{_RESET}"
+
+
+def _red(s: str) -> str:
+    return f"{_RED}{s}{_RESET}"
+
+
+def _yellow(s: str) -> str:
+    return f"{_YELLOW}{s}{_RESET}"
+
+
+def _cyan(s: str) -> str:
+    return f"{_CYAN}{s}{_RESET}"
+
+
+def _bold(s: str) -> str:
+    return f"{_BOLD}{s}{_RESET}"
 
 
 # ---------------------------------------------------------------------------
 # Result tracking
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CheckResult:
@@ -114,7 +133,7 @@ def _load_baseline(tier_lesson_path: str, class_name: str) -> Any:
     Returns:
         Any: The baseline class object.
     """
-    test_path   = str(ROOT / "tests" / "arraysmith" / tier_lesson_path)
+    test_path = str(ROOT / "tests" / "curriculum" / "arraysmith" / tier_lesson_path)
     student_path = str(ROOT / "arraysmith" / tier_lesson_path)
 
     # Evict stale entries for shared module names.
@@ -141,8 +160,8 @@ _RNG_03 = np.random.default_rng(seed=7)
 _MAT_03 = _RNG_03.uniform(-100.0, 100.0, size=(50, 8))
 
 _RNG_04 = np.random.default_rng(seed=13)
-_ROWS_04  = [_RNG_04.integers(0, 100, size=5, dtype=np.int32) for _ in range(3)]
-_LEFT_04  = _RNG_04.integers(0, 50, size=(4, 3), dtype=np.int32)
+_ROWS_04 = [_RNG_04.integers(0, 100, size=5, dtype=np.int32) for _ in range(3)]
+_LEFT_04 = _RNG_04.integers(0, 50, size=(4, 3), dtype=np.int32)
 _RIGHT_04 = _RNG_04.integers(0, 50, size=(4, 5), dtype=np.int32)
 
 _RNG_02 = np.random.default_rng(seed=42)
@@ -151,12 +170,12 @@ _IDX_02 = np.array([7, 0, 15, 3, 7, 99, 42, 128, 0, 199], dtype=np.int64)
 
 _RNG_05 = np.random.default_rng(seed=101)
 _PRICES_05 = _RNG_05.uniform(10.0, 500.0, size=(100, 100)).astype(np.float64)
-_MAT_A_05  = _RNG_05.uniform(-10.0, 10.0, size=(100, 20)).astype(np.float64)
-_MAT_B_05  = _MAT_A_05.copy()
+_MAT_A_05 = _RNG_05.uniform(-10.0, 10.0, size=(100, 20)).astype(np.float64)
+_MAT_B_05 = _MAT_A_05.copy()
 _MAT_B_05[_RNG_05.choice(100, size=50, replace=False)] += 1.0
 
 _RNG_06 = np.random.default_rng(seed=202)
-_ARR_06   = _RNG_06.uniform(0.0, 10.0, size=(50, 50))
+_ARR_06 = _RNG_06.uniform(0.0, 10.0, size=(50, 50))
 _ARR_06_F = np.asfortranarray(_ARR_06)
 
 # Each entry: tier_lesson_path, class_name, method, fn_factory(cls) → zero-arg callable.
@@ -185,8 +204,8 @@ TIER1_EXERCISES: list[dict[str, Any]] = [
         "tier_lesson_path": "basic/02_properties_reshaping",
         "class_name": "PropertiesReshapingBaseline",
         "method": "flatten_and_cast",
-        "fn_factory": lambda cls: lambda: cls.flatten_and_cast(
-            np.arange(12, dtype=np.int32).reshape(2, 6)
+        "fn_factory": lambda cls: (
+            lambda: cls.flatten_and_cast(np.arange(12, dtype=np.int32).reshape(2, 6))
         ),
     },
     # basic/03_indexing_slicing
@@ -226,8 +245,8 @@ TIER1_EXERCISES: list[dict[str, Any]] = [
         "tier_lesson_path": "intermediate/02_array_manipulation",
         "class_name": "ArrayManipulationBaseline",
         "method": "concatenate_side_by_side",
-        "fn_factory": lambda cls: lambda: cls.concatenate_side_by_side(
-            _LEFT_04.copy(), _RIGHT_04.copy()
+        "fn_factory": lambda cls: (
+            lambda: cls.concatenate_side_by_side(_LEFT_04.copy(), _RIGHT_04.copy())
         ),
     },
     # intermediate/03_boolean_logic
@@ -241,7 +260,9 @@ TIER1_EXERCISES: list[dict[str, Any]] = [
         "tier_lesson_path": "intermediate/03_boolean_logic",
         "class_name": "BooleanLogicBaseline",
         "method": "identify_close_rows",
-        "fn_factory": lambda cls: lambda: cls.identify_close_rows(_MAT_A_05.copy(), _MAT_B_05.copy()),
+        "fn_factory": lambda cls: (
+            lambda: cls.identify_close_rows(_MAT_A_05.copy(), _MAT_B_05.copy())
+        ),
     },
     # advanced/01_memory_layout
     {
@@ -265,6 +286,66 @@ TIER1_EXERCISES: list[dict[str, Any]] = [
 ]
 
 
+def _verify_baseline_ast_policy(
+    tier_lesson_path: str, class_name: str, method_name: str, baseline_cls: Any
+) -> None:
+    """Verify that the baseline solution complies with any ast_policy defined in its test suite."""
+    test_dir = ROOT / "tests" / "curriculum" / "arraysmith" / tier_lesson_path
+    test_files = list(test_dir.glob("test_*.py"))
+    if not test_files:
+        return
+
+    test_path = test_files[0]
+    mod_name = test_path.stem
+    if mod_name in sys.modules:
+        sys.modules.pop(mod_name, None)
+
+    spec = importlib.util.spec_from_file_location(mod_name, test_path)
+    if spec is None or spec.loader is None:
+        return
+    test_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(test_mod)
+
+    test_cls = None
+    for attr_name in dir(test_mod):
+        if attr_name.startswith("Test") and isinstance(getattr(test_mod, attr_name), type):
+            test_cls = getattr(test_mod, attr_name)
+            break
+
+    if test_cls is None:
+        return
+
+    test_fn = getattr(test_cls, f"test_{method_name}", None)
+    if test_fn is None:
+        return
+
+    policy_spec = getattr(test_fn, "_ast_policy_spec", None)
+    if policy_spec is None:
+        return
+
+    from forge_core.ast_validator import ASTPolicyVisitor
+
+    baseline_fn = getattr(baseline_cls, method_name)
+    source = textwrap.dedent(inspect.getsource(baseline_fn))
+    node_to_check = ast.parse(source)
+
+    visitor = ASTPolicyVisitor(
+        max_for_loops=policy_spec.get("max_for_loops", 0),
+        max_while_loops=policy_spec.get("max_while_loops", 0),
+        forbid_imports=policy_spec.get("forbid_imports"),
+        require_calls=policy_spec.get("require_calls"),
+        forbid_calls=policy_spec.get("forbid_calls"),
+    )
+    visitor.visit(node_to_check)
+    visitor.check_requirements()
+
+    if visitor.violations:
+        violations_str = ", ".join(msg for _, msg, _ in visitor.violations)
+        raise RuntimeError(
+            f"Baseline {class_name}.{method_name} violated AST policy: {violations_str}"
+        )
+
+
 def run_tier1(verbose: bool) -> ValidationReport:
     """Execute Tier 1 — Baseline self-consistency checks.
 
@@ -285,6 +366,7 @@ def run_tier1(verbose: bool) -> ValidationReport:
         label = f"{ex['tier_lesson_path']}::{ex['method']}"
         try:
             cls = _load_baseline(ex["tier_lesson_path"], ex["class_name"])
+            _verify_baseline_ast_policy(ex["tier_lesson_path"], ex["class_name"], ex["method"], cls)
             fn = ex["fn_factory"](cls)
             result: BenchmarkResult = compare_and_benchmark(
                 student_fn=fn,
@@ -303,6 +385,7 @@ def run_tier1(verbose: bool) -> ValidationReport:
 # ---------------------------------------------------------------------------
 # Tier 2 — Infrastructure integrity
 # ---------------------------------------------------------------------------
+
 
 def _infra_correctness_detection() -> CheckResult:
     """Verify that compare_and_benchmark raises on wrong output.
@@ -404,24 +487,32 @@ def run_tier2(verbose: bool) -> ValidationReport:
 
 # Composite key → expected method names.
 _EXPECTED_REGISTRY: dict[str, list[str]] = {
-    "basic/01_array_creation":        ["create_integer_range", "create_squared_range"],
-    "basic/02_properties_reshaping":  ["reshape_to_matrix", "flatten_and_cast"],
-    "basic/03_indexing_slicing":      ["filter_above_threshold", "gather_by_indices"],
-    "intermediate/01_vectorized_math":    ["row_means", "normalize_columns"],
+    "basic/01_array_creation": ["create_integer_range", "create_squared_range"],
+    "basic/02_properties_reshaping": ["reshape_to_matrix", "flatten_and_cast"],
+    "basic/03_indexing_slicing": ["filter_above_threshold", "gather_by_indices"],
+    "intermediate/01_vectorized_math": ["row_means", "normalize_columns"],
     "intermediate/02_array_manipulation": ["stack_rows", "concatenate_side_by_side"],
-    "intermediate/03_boolean_logic":      ["apply_discount", "identify_close_rows"],
-    "advanced/01_memory_layout":      ["ensure_c_contiguous", "check_memory_share", "get_row_stride_bytes"],
+    "intermediate/03_boolean_logic": ["apply_discount", "identify_close_rows"],
+    "advanced/01_memory_layout": [
+        "ensure_c_contiguous",
+        "check_memory_share",
+        "get_row_stride_bytes",
+    ],
+    "basic/01_cpp_integration": ["run_cpp_addition"],
+    "intermediate/01_cuda_gemm": ["run_naive_gemm", "run_tiled_gemm"],
 }
 
 # Composite key → expected student class name (without "Baseline" suffix).
 _EXPECTED_CLASS_NAMES: dict[str, str] = {
-    "basic/01_array_creation":        "ArrayCreation",
-    "basic/02_properties_reshaping":  "PropertiesReshaping",
-    "basic/03_indexing_slicing":      "IndexingSlicing",
-    "intermediate/01_vectorized_math":    "VectorizedMath",
+    "basic/01_array_creation": "ArrayCreation",
+    "basic/02_properties_reshaping": "PropertiesReshaping",
+    "basic/03_indexing_slicing": "IndexingSlicing",
+    "intermediate/01_vectorized_math": "VectorizedMath",
     "intermediate/02_array_manipulation": "ArrayManipulation",
-    "intermediate/03_boolean_logic":      "BooleanLogic",
-    "advanced/01_memory_layout":      "MemoryLayout",
+    "intermediate/03_boolean_logic": "BooleanLogic",
+    "advanced/01_memory_layout": "MemoryLayout",
+    "basic/01_cpp_integration": "CppIntegration",
+    "intermediate/01_cuda_gemm": "CudaGemm",
 }
 
 
@@ -441,6 +532,7 @@ def run_tier3(verbose: bool) -> ValidationReport:
     report = ValidationReport("Tier 3 — Registry Completeness")
 
     from hint import HINTS_REGISTRY
+
     registry = HINTS_REGISTRY
 
     for module_key, expected_methods in _EXPECTED_REGISTRY.items():
@@ -485,6 +577,7 @@ def run_tier3(verbose: bool) -> ValidationReport:
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
+
 
 def _print_report(report: ValidationReport, verbose: bool) -> None:
     """Print a formatted report for one validation tier.
@@ -534,17 +627,17 @@ def _print_summary(reports: list[ValidationReport]) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main() -> int:
     """Run all three validation tiers and return exit code.
 
     Returns:
         int: 0 if every check passed, 1 otherwise.
     """
-    parser = argparse.ArgumentParser(
-        description="TensorForge baseline validation script"
-    )
+    parser = argparse.ArgumentParser(description="TensorForge baseline validation script")
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Print full tracebacks for failed checks",
     )

@@ -12,6 +12,7 @@ description = "An interactive lab training ground for NumPy (arraysmith) and PyT
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "argcomplete>=3.0.0",
     "forge-core",
     "hint",
     "matplotlib>=3.11.0",
@@ -48,7 +49,7 @@ exclude = [
     "^arraysmith/.*",
     "^tensorsmith/.*",
     "^hpcsmith/.*",
-    "^tests/(arraysmith|tensorsmith|hpcsmith)/.*",
+    "^tests/curriculum/(arraysmith|tensorsmith|hpcsmith)/.*",
     "^\\.venv/.*",
     "^trash_venv_.*",
 ]
@@ -77,3 +78,26 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501", "E402", "SIM117", "B017"]
 
+[dependency-groups]
+dev = [
+    "types-requests>=2.33.0.20260518",
+    "types-tqdm>=4.68.0.20260608",
+]
+
+[tool.uv]
+index-strategy = "unsafe-first-match"
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+forge-core = { path = "forge_core", editable = true }
+hint = { path = "hint", editable = true }
+torch = [
+    { index = "pytorch", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+    { index = "pytorch", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]

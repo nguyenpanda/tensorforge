@@ -136,6 +136,19 @@ class BenchmarkResult(NamedTuple):
     baseline_peak_kb: float = 0.0
 
 
+def _sync_hardware() -> None:
+    """Synchronize GPU/accelerator hardware (CUDA or Apple Silicon Metal/MPS) if available."""
+    try:
+        import torch  # type: ignore[import-untyped]
+
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.synchronize()
+    except Exception:
+        pass
+
+
 def _time_function(fn: Callable[[], Any], n_runs: int) -> tuple[float, float, Any]:
     """Execute *fn* once for output capture and memory tracing, then time it over *n_runs* repeats.
 
@@ -148,11 +161,19 @@ def _time_function(fn: Callable[[], Any], n_runs: int) -> tuple[float, float, An
     """
     tracemalloc.start()
     output = fn()
+    _sync_hardware()
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     peak_kb = peak / 1024.0
 
-    elapsed = timeit.timeit(fn, number=n_runs)
+    _sync_hardware()
+    start_time = timeit.default_timer()
+    for _ in range(n_runs):
+        fn()
+    _sync_hardware()
+    end_time = timeit.default_timer()
+
+    elapsed = end_time - start_time
     return elapsed / n_runs, peak_kb, output
 
 
@@ -209,7 +230,9 @@ def _assert_outputs_equal(
             else:
                 np.testing.assert_array_equal(student_output, baseline_output)
         except AssertionError as exc:
-            pytest.fail(f"{_ERR}Output mismatch between your solution and the baseline:\n{exc}{reset}")
+            pytest.fail(
+                f"{_ERR}Output mismatch between your solution and the baseline:\n{exc}{reset}"
+            )
     else:
         assert student_output == baseline_output, (
             f"{_ERR}Output mismatch: got {student_output!r}, expected {baseline_output!r}{reset}"
@@ -267,20 +290,18 @@ def compare_and_benchmark(
     Raises:
         pytest.fail: On correctness mismatch, dtype mismatch, or performance threshold breach.
     """
-    from forge_core.backends.numpy_backend import NumpyBackend  # local import avoids circular deps
+    from forge_core.backends.numpy_backend import NumpyBackend
 
     if config is None:
         config = BenchmarkConfig()
 
-    # Resolve backends: fall back to NumpyBackend when the caller did not supply one.
-    _student_backend = student_backend if student_backend is not None else NumpyBackend(fn=student_fn)
-    _baseline_backend = baseline_backend if baseline_backend is not None else NumpyBackend(fn=baseline_fn)
+    _student_backend = (
+        student_backend if student_backend is not None else NumpyBackend(fn=student_fn)
+    )
+    _baseline_backend = (
+        baseline_backend if baseline_backend is not None else NumpyBackend(fn=baseline_fn)
+    )
 
-    # ------------------------------------------------------------------
-    # Fast Mode bypass: single execution, correctness only, no profiling.
-    # Activated by setting TFORGE_FAST_MODE=1 in the subprocess environment
-    # (via `tforge check --fast`) or directly in the calling process env.
-    # ------------------------------------------------------------------
     if os.environ.get("TFORGE_FAST_MODE") == "1":
         with _baseline_backend:
             baseline_output = _baseline_backend.execute()
@@ -299,9 +320,6 @@ def compare_and_benchmark(
             student_peak_kb=0.0,
             baseline_peak_kb=0.0,
         )
-    # ------------------------------------------------------------------
-    # Full benchmark path.
-    # ------------------------------------------------------------------
 
     with _baseline_backend:
         baseline_time_s, baseline_peak_kb, baseline_output = _time_function(

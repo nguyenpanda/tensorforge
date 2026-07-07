@@ -1,0 +1,67 @@
+"""
+_baseline.py — Module 02: Indexing & Slicing (Reference Solutions)
+===================================================================
+This file contains the optimal NumPy solutions used as ground truth by the
+test suite.  Do NOT modify this file.
+"""
+
+import numpy as np
+
+
+class IndexingSlicingBaseline:
+    """Reference implementations for Module 02 exercises."""
+
+    @classmethod
+    def filter_above_threshold(cls, arr: np.ndarray, threshold: float) -> np.ndarray:
+        """Return a 1-D array containing only elements strictly greater than threshold.
+
+        Construct a boolean mask by evaluating the condition directly on the
+        array, then apply that mask as an index: ``arr[mask]``.
+        Do NOT modify the input array.
+
+        Example:
+            arr       = np.array([-3, -1, 0, 2, 5, 8])
+            threshold = 1.0
+            Output    = np.array([2, 5, 8])
+
+        Allowed API : boolean indexing ``arr[arr > threshold]``
+        Forbidden   : Python loops, list comprehensions, np.where (for extraction)
+
+        Args:
+            arr: 1-D NumPy array of numeric values.
+            threshold: Scalar comparison value.
+
+        Returns:
+            np.ndarray: 1-D array containing only the elements > threshold,
+                        preserving their original order.
+
+        """
+        return arr[arr > threshold]
+
+    @classmethod
+    def gather_by_indices(cls, arr: np.ndarray, indices: np.ndarray) -> np.ndarray:
+        """Select elements from *arr* at positions given by *indices*.
+
+        Use fancy (integer) indexing — pass the ``indices`` array directly into
+        ``arr[...]`` to retrieve all requested elements in a single operation.
+
+        Example:
+            arr     = np.array([10, 20, 30, 40, 50])
+            indices = np.array([4, 0, 2])
+            Output  = np.array([50, 10, 30])
+
+        Note: ``indices`` may contain duplicates and need not be sorted.
+        The output order must follow the order of ``indices``.
+
+        Allowed API : fancy indexing ``arr[indices]``
+        Forbidden   : Python loops, explicit element-by-element access
+
+        Args:
+            arr: 1-D source NumPy array.
+            indices: 1-D integer array of valid positions into *arr*.
+
+        Returns:
+            np.ndarray: 1-D array of elements gathered at the requested positions.
+
+        """
+        return arr[indices]

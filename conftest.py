@@ -16,9 +16,41 @@ Responsibilities
 
 from __future__ import annotations
 
+import os
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+
+_ROOT_DIR = Path(__file__).parent.resolve()
+
+
+def _ensure_venv_in_path(root_dir: Path) -> None:
+    """Ensure virtual environment bin/Scripts directory is in os.environ['PATH']."""
+    paths_to_add = []
+    exec_dir = os.path.dirname(sys.executable)
+    if exec_dir and os.path.isdir(exec_dir):
+        paths_to_add.append(exec_dir)
+
+    venv_bin = root_dir / ".venv" / ("Scripts" if sys.platform == "win32" else "bin")
+    if venv_bin.is_dir() and str(venv_bin) not in paths_to_add:
+        paths_to_add.append(str(venv_bin))
+
+    current_path = os.environ.get("PATH", "")
+    path_list = current_path.split(os.pathsep) if current_path else []
+
+    added = False
+    for p in reversed(paths_to_add):
+        if p not in path_list:
+            path_list.insert(0, p)
+            added = True
+
+    if added:
+        os.environ["PATH"] = os.pathsep.join(path_list)
+
+
+_ensure_venv_in_path(_ROOT_DIR)
 
 if TYPE_CHECKING:
     from forge_core.benchmark import BenchmarkConfig

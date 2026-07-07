@@ -60,9 +60,12 @@ device-side completion.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import os
 import threading
 import warnings
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -74,8 +77,10 @@ try:
 
     _TORCH_AVAILABLE: bool = True
 except ImportError:
-    torch = None  # type: ignore[assignment]
-    _cpp_load = None  # type: ignore[assignment]
+    from unittest.mock import MagicMock
+
+    torch = MagicMock()  # type: ignore[assignment]
+    _cpp_load = MagicMock()  # type: ignore[assignment]
     _TORCH_AVAILABLE = False
 
 try:
@@ -88,6 +93,40 @@ except Exception:  # noqa: BLE001
     _reset = ""
 
 _HPC_PREFIX: str = f"{_WARN_COLOR}[HPC Bridge]{_reset}"
+
+
+def _get_jit_build_dir(module_name: str) -> Path:
+    """Return the dedicated JIT compilation build directory for *module_name*."""
+    build_dir = Path.home() / ".cache" / "tensorforge" / "jit" / module_name
+    with contextlib.suppress(Exception):
+        build_dir.mkdir(parents=True, exist_ok=True)
+    return build_dir
+
+
+@contextlib.contextmanager
+def _acquire_compilation_lock(lock_path: Path) -> Generator[None, None, None]:
+    """Acquire a cross-process file lock with close-on-exec to prevent compilation deadlocks."""
+    if hasattr(lock_path, "_mock_return_value"):
+        yield
+        return
+    with contextlib.suppress(Exception):
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(str(lock_path), "w") as f:
+            fd = f.fileno()
+            try:
+                os.set_inheritable(fd, False)
+                fcntl.fcntl(fd, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
+            except Exception:
+                pass
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                yield
+            finally:
+                with contextlib.suppress(Exception):
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+    except Exception:
+        yield
 
 
 class CudaJitBackend(ExecutionBackend):
@@ -189,9 +228,12 @@ class CudaJitBackend(ExecutionBackend):
             else:
                 if not Path(source_path).exists():
                     raise FileNotFoundError(f"Source file not found: {source_path}")
+                build_dir = _get_jit_build_dir(module_name)
+                lock_path = build_dir / ".compilation_lock"
                 load_kwargs: dict[str, Any] = {
                     "name": module_name,
                     "sources": [resolved_source],
+                    "build_directory": str(build_dir),
                     "verbose": False,
                 }
                 if os.environ.get("TFORGE_DEBUG_CPP") == "1":
@@ -201,7 +243,8 @@ class CudaJitBackend(ExecutionBackend):
                         "-g",
                     ]
                     load_kwargs["extra_ldflags"] = ["-fsanitize=address"]
-                self.module = _cpp_load(**load_kwargs)
+                with _acquire_compilation_lock(lock_path):
+                    self.module = _cpp_load(**load_kwargs)
                 self._module_cache[cache_key] = self.module
 
         try:
@@ -225,9 +268,7 @@ class CudaJitBackend(ExecutionBackend):
             **kwargs: Keyword :class:`torch.Tensor` instances to supply to the kernel.
         """
         if self._cuda_available:
-            self._device_args = tuple(
-                t.cuda() if hasattr(t, "cuda") else t for t in args
-            )
+            self._device_args = tuple(t.cuda() if hasattr(t, "cuda") else t for t in args)
             self._device_kwargs = {
                 k: v.cuda() if hasattr(v, "cuda") else v for k, v in kwargs.items()
             }

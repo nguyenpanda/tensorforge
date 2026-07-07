@@ -36,13 +36,17 @@ from __future__ import annotations
 import importlib
 import inspect
 import pkgutil
+import sys
 from pathlib import Path
 from typing import Any
 
 from nguyenpanda.swan import c24, reset
 
 _GOLD = c24["ffd700"]
-def yellow(s: str) -> str: return f"{_GOLD}{s}{reset}"
+
+
+def yellow(s: str) -> str:
+    return f"{_GOLD}{s}{reset}"
 
 
 def _build_registry() -> dict[str, Any]:
@@ -95,23 +99,26 @@ def _build_registry() -> dict[str, Any]:
                     if not module_name.startswith("hint_"):
                         continue
                     full_name = f"{full_tier}.{module_name}"
-                    _load_hint_module(full_name, registry)
+                    _load_hint_module(full_name, registry, curriculum_name)
 
             # Backward compatibility: flat ``hint_*.py`` directly under curriculum.
             elif tier_or_module_name.startswith("hint_"):
                 full_name = f"{full_curriculum}.{tier_or_module_name}"
-                _load_hint_module(full_name, registry)
+                _load_hint_module(full_name, registry, curriculum_name)
 
     return registry
 
 
-def _load_hint_module(full_module_name: str, registry: dict[str, Any]) -> None:
+def _load_hint_module(
+    full_module_name: str, registry: dict[str, Any], curriculum_name: str = ""
+) -> None:
     """Import a single hint module and merge its entry into *registry*.
 
     Args:
         full_module_name: Fully-qualified Python module name (e.g.
             ``"hint.arraysmith.basic.hint_01_array_creation"``).
         registry: Mutable registry dict to update in-place.
+        curriculum_name: Name of the curriculum package (e.g. ``"arraysmith"``).
 
     Raises:
         AttributeError: When the module is missing ``MODULE`` or ``HINT``.
@@ -133,6 +140,9 @@ def _load_hint_module(full_module_name: str, registry: dict[str, Any]) -> None:
         )
 
     registry[module_key] = hint_data
+    if curriculum_name:
+        rel_key = f"{curriculum_name}/{module_key}"
+        registry[rel_key] = hint_data
 
 
 HINTS_REGISTRY: dict[str, Any] = _build_registry()
@@ -186,14 +196,17 @@ def get_hint_str(deep: int = 1) -> tuple[dict[str, str], Path, str, str, str]:
     if not caller_path.is_file():
         raise FileNotFoundError(f"Could not locate the calling file: {caller_path}")
 
-    lesson_dir = caller_path.parent        # e.g. …/arraysmith/basic/01_array_creation
-    tier_dir = lesson_dir.parent           # e.g. …/arraysmith/basic
+    lesson_dir = caller_path.parent  # e.g. …/arraysmith/basic/01_array_creation
+    tier_dir = lesson_dir.parent  # e.g. …/arraysmith/basic
+    curriculum_dir = tier_dir.parent  # e.g. …/arraysmith
 
-    # Build the composite key: "<tier>/<lesson_dir_name>"
+    rel_path_key = f"{curriculum_dir.name}/{tier_dir.name}/{lesson_dir.name}"
     module_key = f"{tier_dir.name}/{lesson_dir.name}"
     method_name = caller_frame_info.function
 
-    if module_key not in HINTS_REGISTRY:
+    if rel_path_key in HINTS_REGISTRY:
+        module_key = rel_path_key
+    elif module_key not in HINTS_REGISTRY:
         # Fallback: try using only the immediate lesson directory name (legacy flat layout).
         fallback_key = lesson_dir.name
         if fallback_key in HINTS_REGISTRY:
@@ -273,7 +286,9 @@ def show_hint(deep: int = 1) -> None:
     for line in minor_msg.splitlines():
         print(yellow(f"    {line}"))
 
-    print(yellow(sep) + "\n")
+    print(yellow(sep) + "\n", flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
     raise NotImplementedError("Hint requested - Implementation pending")
 
 

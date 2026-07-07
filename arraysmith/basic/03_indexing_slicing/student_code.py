@@ -17,14 +17,14 @@ Run your tests with:
 
 import numpy as np
 
+from hint import show_hint  # noqa: F401
+
 
 class IndexingSlicing:
     """Exercises covering boolean masking and integer (fancy) indexing."""
 
     @classmethod
-    def filter_above_threshold(
-        cls, arr: np.ndarray, threshold: float
-    ) -> np.ndarray:
+    def filter_above_threshold(cls, arr: np.ndarray, threshold: float) -> np.ndarray:
         """Return a 1-D array containing only elements strictly greater than threshold.
 
         Construct a boolean mask by evaluating the condition directly on the
@@ -48,12 +48,10 @@ class IndexingSlicing:
                         preserving their original order.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement filter_above_threshold()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
-    def gather_by_indices(
-        cls, arr: np.ndarray, indices: np.ndarray
-    ) -> np.ndarray:
+    def gather_by_indices(cls, arr: np.ndarray, indices: np.ndarray) -> np.ndarray:
         """Select elements from *arr* at positions given by *indices*.
 
         Use fancy (integer) indexing — pass the ``indices`` array directly into
@@ -78,4 +76,4 @@ class IndexingSlicing:
             np.ndarray: 1-D array of elements gathered at the requested positions.
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement gather_by_indices()")
+        raise NotImplementedError("TODO: Implement this function")

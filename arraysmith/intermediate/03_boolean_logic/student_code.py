@@ -16,6 +16,8 @@ Run your tests with:
 
 import numpy as np
 
+from hint import show_hint  # noqa: F401
+
 
 class BooleanLogic:
     """Exercises covering conditional array construction and approximate comparisons."""
@@ -47,7 +49,7 @@ class BooleanLogic:
             array([ 50., 100., 120., 160.])
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement apply_discount()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
     def identify_close_rows(
@@ -76,4 +78,4 @@ class BooleanLogic:
             array([ True, False])
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement identify_close_rows()")
+        raise NotImplementedError("TODO: Implement this function")

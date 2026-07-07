@@ -16,6 +16,8 @@ Run your tests with:
 
 import numpy as np
 
+from hint import show_hint  # noqa: F401
+
 
 class ArrayManipulation:
     """Exercises covering NumPy array stacking and concatenation."""
@@ -46,12 +48,10 @@ class ArrayManipulation:
             np.ndarray: 2-D array of shape (len(arrays), len(arrays[0])).
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement stack_rows()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
-    def concatenate_side_by_side(
-        cls, left: np.ndarray, right: np.ndarray
-    ) -> np.ndarray:
+    def concatenate_side_by_side(cls, left: np.ndarray, right: np.ndarray) -> np.ndarray:
         """Concatenate two 2-D arrays horizontally (column-wise).
 
         *left* and *right* must have the same number of rows.  The output
@@ -80,4 +80,4 @@ class ArrayManipulation:
             np.ndarray: 2-D array of shape (M, K+L).
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement concatenate_side_by_side()")
+        raise NotImplementedError("TODO: Implement this function")

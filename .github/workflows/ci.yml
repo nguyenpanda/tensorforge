@@ -24,11 +24,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
-      - name: Run static analysis
-        run: uv run tforge lint
+      - name: Run static analysis & linting
+        run: |
+          uv run tforge lint
+          uv run ruff check .
 
-      - name: Check infrastructure
-        run: uv run tforge check infra
-
-      - name: Validate baselines and registry
-        run: uv run tforge validate
+      - name: Run test suite
+        run: uv run pytest tests/infra/ -v

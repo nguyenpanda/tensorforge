@@ -17,6 +17,8 @@ Run your tests with:
 
 import numpy as np
 
+from hint import show_hint  # noqa: F401
+
 
 class ArrayCreation:
     """Exercises covering fundamental NumPy array-creation routines."""
@@ -36,7 +38,7 @@ class ArrayCreation:
             np.ndarray: 1-D int8 array with values [0, 1, 2, ..., 99].
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement create_integer_range()")
+        raise NotImplementedError("TODO: Implement this function")
 
     @classmethod
     def create_squared_range(cls) -> np.ndarray:
@@ -56,4 +58,4 @@ class ArrayCreation:
             np.ndarray: 1-D array with values [0, 1, 4, 9, ..., 9801].
         """
         # Replace the line below with show_hint() if you need help.
-        raise NotImplementedError("Implement create_squared_range()")
+        raise NotImplementedError("TODO: Implement this function")

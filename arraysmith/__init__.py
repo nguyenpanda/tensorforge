@@ -23,7 +23,7 @@ makes flat curricula brittle to reorganisation.
     └── applications/                (empty — future lessons)
 
 Reference baselines and verification suites are securely isolated in
-``tests/arraysmith/<tier>/<lesson_dir>/``.
+``tests/curriculum/arraysmith/<tier>/<lesson_dir>/``.
 
 Check your solutions using the CLI::
 
