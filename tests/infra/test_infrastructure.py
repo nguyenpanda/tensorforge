@@ -35,7 +35,7 @@ import pytest
 ROOT = Path(__file__).parent.parent.parent.resolve()
 sys.path.insert(0, str(ROOT / "arraysmith" / "basic" / "01_array_creation"))
 
-from forge_core.ast_validator import ast_policy
+from forge_core.ast_validator import PolicyViolationError, ast_policy
 from forge_core.backends import ExecutionBackend, NumpyBackend
 from forge_core.benchmark import (
     BenchmarkConfig,
@@ -548,6 +548,30 @@ class TestASTValidator:
             return bad_fn()
 
         with pytest.raises(BaseException, match="Custom Smart AST Feedback: Do not import math!"):
+            run_test()
+
+    def test_forbid_function_imports(self):
+        def bad_fn():
+            import sys
+
+            return sys.version
+
+        @ast_policy(forbid_function_imports=True, target=bad_fn)
+        def run_test():
+            return bad_fn()
+
+        with pytest.raises(PolicyViolationError, match="Forbidden import inside function body"):
+            run_test()
+
+    def test_forbid_hardcoded_literals(self):
+        def bad_fn():
+            return 42
+
+        @ast_policy(forbid_hardcoded_literals=True, target=bad_fn)
+        def run_test():
+            return bad_fn()
+
+        with pytest.raises(PolicyViolationError, match="Forbidden hardcoded numeric literal"):
             run_test()
 
 

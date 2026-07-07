@@ -17,3 +17,4 @@ wheels/
 
 # Cached datasets
 .tensorforge_datasets/
+**/.jit_cache/

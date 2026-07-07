@@ -11,6 +11,7 @@ required calls before execution or benchmarking occurs.
 from __future__ import annotations
 
 import ast
+import contextlib
 import functools
 import inspect
 import sys
@@ -18,13 +19,22 @@ import textwrap
 from collections.abc import Callable, Sequence
 from typing import Any
 
-import pytest
 from nguyenpanda.swan import c24, reset
 
 _ERR = c24["ff3333"]
 _WARN = c24["ff8800"]
 _CYAN = c24["00d7ff"]
 _GOLD = c24["ffd700"]
+
+
+class PolicyViolationError(SyntaxError):
+    """Exception raised when student implementation violates architectural AST policy."""
+
+    def __init__(self, message: str, filename: str = "", lineno: int | None = None):
+        super().__init__(message)
+        self.filename = filename
+        if lineno is not None:
+            self.lineno = lineno
 
 
 class ASTPolicyVisitor(ast.NodeVisitor):
@@ -37,6 +47,8 @@ class ASTPolicyVisitor(ast.NodeVisitor):
         forbid_imports: Sequence[str] | None = None,
         require_calls: Sequence[str] | None = None,
         forbid_calls: Sequence[str] | None = None,
+        forbid_function_imports: bool = False,
+        forbid_hardcoded_literals: bool = False,
         feedback: dict[str, str] | None = None,
     ):
         self.max_for_loops = max_for_loops
@@ -44,12 +56,25 @@ class ASTPolicyVisitor(ast.NodeVisitor):
         self.forbid_imports = set(forbid_imports or [])
         self.require_calls = set(require_calls or [])
         self.forbid_calls = set(forbid_calls or [])
+        self.forbid_function_imports = forbid_function_imports
+        self.forbid_hardcoded_literals = forbid_hardcoded_literals
         self.feedback = feedback or {}
 
         self.for_count = 0
         self.while_count = 0
         self.found_calls: set[str] = set()
-        self.violations: list[tuple[bool, str]] = []
+        self.violations: list[tuple[bool, str, int | None]] = []
+        self._in_function_depth = 0
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        self._in_function_depth += 1
+        self.generic_visit(node)
+        self._in_function_depth -= 1
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
+        self._in_function_depth += 1
+        self.generic_visit(node)
+        self._in_function_depth -= 1
 
     def visit_For(self, node: ast.For) -> Any:
         self.for_count += 1
@@ -60,12 +85,13 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                 or self.feedback.get("for")
             )
             if custom:
-                self.violations.append((True, custom))
+                self.violations.append((True, custom, node.lineno))
             else:
                 self.violations.append(
                     (
                         False,
                         f"Exceeded maximum allowed for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.",
+                        node.lineno,
                     )
                 )
         self.generic_visit(node)
@@ -79,12 +105,13 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                 or self.feedback.get("for")
             )
             if custom:
-                self.violations.append((True, custom))
+                self.violations.append((True, custom, node.lineno))
             else:
                 self.violations.append(
                     (
                         False,
                         f"Exceeded maximum allowed async for-loops ({self.for_count} > {self.max_for_loops}) at line {node.lineno}.",
+                        node.lineno,
                     )
                 )
         self.generic_visit(node)
@@ -98,17 +125,27 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                 or self.feedback.get("while")
             )
             if custom:
-                self.violations.append((True, custom))
+                self.violations.append((True, custom, node.lineno))
             else:
                 self.violations.append(
                     (
                         False,
                         f"Exceeded maximum allowed while-loops ({self.while_count} > {self.max_while_loops}) at line {node.lineno}.",
+                        node.lineno,
                     )
                 )
         self.generic_visit(node)
 
     def visit_Import(self, node: ast.Import) -> Any:
+        if self.forbid_function_imports and self._in_function_depth > 0:
+            custom = self.feedback.get("forbid_function_imports") or self.feedback.get(
+                "no_function_imports"
+            )
+            msg = (
+                custom
+                or f"Forbidden import inside function body at line {node.lineno}. Clean Lab forbids local function imports."
+            )
+            self.violations.append((bool(custom), msg, node.lineno))
         for alias in node.names:
             for forbidden in self.forbid_imports:
                 if alias.name == forbidden or alias.name.startswith(f"{forbidden}."):
@@ -118,17 +155,27 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                         or self.feedback.get("forbid_imports")
                     )
                     if custom:
-                        self.violations.append((True, custom))
+                        self.violations.append((True, custom, node.lineno))
                     else:
                         self.violations.append(
                             (
                                 False,
                                 f"Forbidden module import '{alias.name}' detected at line {node.lineno}.",
+                                node.lineno,
                             )
                         )
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> Any:
+        if self.forbid_function_imports and self._in_function_depth > 0:
+            custom = self.feedback.get("forbid_function_imports") or self.feedback.get(
+                "no_function_imports"
+            )
+            msg = (
+                custom
+                or f"Forbidden import inside function body at line {node.lineno}. Clean Lab forbids local function imports."
+            )
+            self.violations.append((bool(custom), msg, node.lineno))
         if node.module:
             for forbidden in self.forbid_imports:
                 if node.module == forbidden or node.module.startswith(f"{forbidden}."):
@@ -138,12 +185,13 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                         or self.feedback.get("forbid_imports")
                     )
                     if custom:
-                        self.violations.append((True, custom))
+                        self.violations.append((True, custom, node.lineno))
                     else:
                         self.violations.append(
                             (
                                 False,
                                 f"Forbidden module import 'from {node.module}' detected at line {node.lineno}.",
+                                node.lineno,
                             )
                         )
         self.generic_visit(node)
@@ -177,14 +225,53 @@ class ASTPolicyVisitor(ast.NodeVisitor):
                         or self.feedback.get("forbid_calls")
                     )
                     if custom:
-                        self.violations.append((True, custom))
+                        self.violations.append((True, custom, node.lineno))
                     else:
                         self.violations.append(
                             (
                                 False,
                                 f"Forbidden function call '{call_name}' (matching rule '{forbidden}') detected at line {node.lineno}.",
+                                node.lineno,
                             )
                         )
+        self.generic_visit(node)
+
+    def visit_Constant(self, node: ast.Constant) -> Any:
+        if (
+            self.forbid_hardcoded_literals
+            and isinstance(node.value, (int, float, complex))
+            and not isinstance(node.value, bool)
+            and node.value not in (0, 1, -1, 0.0, 1.0, -1.0)
+        ):
+            custom = self.feedback.get("forbid_hardcoded_literals") or self.feedback.get(
+                "no_hardcoded_literals"
+            )
+            msg = (
+                custom
+                or f"Forbidden hardcoded numeric literal '{node.value}' at line {node.lineno}. Require mathematical constants or parameters."
+            )
+            self.violations.append((bool(custom), msg, getattr(node, "lineno", None)))
+        self.generic_visit(node)
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
+        if (
+            self.forbid_hardcoded_literals
+            and isinstance(node.op, ast.USub)
+            and isinstance(node.operand, ast.Constant)
+            and isinstance(node.operand.value, (int, float))
+            and not isinstance(node.operand.value, bool)
+        ):
+            val = -node.operand.value
+            if val not in (0, 1, -1, 0.0, 1.0, -1.0):
+                custom = self.feedback.get("forbid_hardcoded_literals") or self.feedback.get(
+                    "no_hardcoded_literals"
+                )
+                msg = (
+                    custom
+                    or f"Forbidden hardcoded numeric literal '{val}' at line {node.lineno}. Require mathematical constants or parameters."
+                )
+                self.violations.append((bool(custom), msg, getattr(node, "lineno", None)))
+            return
         self.generic_visit(node)
 
     def check_requirements(self) -> None:
@@ -192,12 +279,13 @@ class ASTPolicyVisitor(ast.NodeVisitor):
             if not any(self._call_matches(actual, req) for actual in self.found_calls):
                 custom = self.feedback.get(req) or self.feedback.get("require_calls")
                 if custom:
-                    self.violations.append((True, custom))
+                    self.violations.append((True, custom, None))
                 else:
                     self.violations.append(
                         (
                             False,
                             f"Required function call matching '{req}' was not found in the implementation.",
+                            None,
                         )
                     )
 
@@ -251,6 +339,11 @@ def ast_policy(
     forbid_imports: Sequence[str] | None = None,
     require_calls: Sequence[str] | None = None,
     forbid_calls: Sequence[str] | None = None,
+    forbid_function_imports: bool = False,
+    forbid_hardcoded_literals: bool = False,
+    no_loops: bool | None = None,
+    no_function_imports: bool | None = None,
+    no_hardcoded_literals: bool | None = None,
     target: Callable[..., Any] | str | None = None,
     feedback: dict[str, str] | None = None,
 ) -> Callable[..., Any]:
@@ -290,12 +383,19 @@ def ast_policy(
                     node_to_check = None
 
             if node_to_check is not None and not _is_stub_node(node_to_check):
+                eff_for = 0 if (no_loops is True or max_for_loops == -1) else max_for_loops
+                eff_while = 0 if (no_loops is True or max_while_loops == -1) else max_while_loops
+                eff_func_imp = bool(no_function_imports is True or forbid_function_imports is True)
+                eff_lit = bool(no_hardcoded_literals is True or forbid_hardcoded_literals is True)
+
                 visitor = ASTPolicyVisitor(
-                    max_for_loops=max_for_loops,
-                    max_while_loops=max_while_loops,
+                    max_for_loops=eff_for,
+                    max_while_loops=eff_while,
                     forbid_imports=forbid_imports,
                     require_calls=require_calls,
                     forbid_calls=forbid_calls,
+                    forbid_function_imports=eff_func_imp,
+                    forbid_hardcoded_literals=eff_lit,
                     feedback=feedback,
                 )
                 visitor.visit(node_to_check)
@@ -303,7 +403,18 @@ def ast_policy(
 
                 if visitor.violations:
                     formatted_items = []
-                    for is_custom, msg in visitor.violations:
+                    first_lineno = None
+                    target_file = ""
+                    if callable(target):
+                        with contextlib.suppress(TypeError, OSError):
+                            target_file = inspect.getfile(target)
+                    elif "student_code" in sys.modules:
+                        with contextlib.suppress(Exception):
+                            target_file = getattr(sys.modules["student_code"], "__file__", "")
+
+                    for is_custom, msg, lineno in visitor.violations:
+                        if first_lineno is None and lineno is not None:
+                            first_lineno = lineno
                         if is_custom:
                             formatted_items.append(f"{_GOLD}{msg}{reset}")
                         else:
@@ -314,6 +425,7 @@ def ast_policy(
                         f"🛑 AST POLICY VIOLATION DETECTED\n"
                         f"{'=' * 65}{reset}\n"
                         f"  Target  : {_CYAN}{target_name}{reset}\n"
+                        f"  File    : {_CYAN}{target_file}{reset}\n"
                         f"  Details :{details_str}\n"
                         f"{_ERR}{'-' * 65}\n"
                         f"{_GOLD}  💡 Hint: Clean Lab enforces architectural constraints using AST static\n"
@@ -321,10 +433,19 @@ def ast_policy(
                         f"           the rule specified above.{reset}\n"
                         f"{_ERR}{'=' * 65}{reset}\n"
                     )
-                    pytest.fail(msg)
+                    raise PolicyViolationError(msg, filename=target_file, lineno=first_lineno)
 
             return fn(*args, **kwargs)
 
+        wrapper.__dict__["_ast_policy_spec"] = {
+            "max_for_loops": max_for_loops,
+            "max_while_loops": max_while_loops,
+            "forbid_imports": forbid_imports,
+            "require_calls": require_calls,
+            "forbid_calls": forbid_calls,
+            "forbid_function_imports": forbid_function_imports,
+            "forbid_hardcoded_literals": forbid_hardcoded_literals,
+        }
         return wrapper
 
     return decorator

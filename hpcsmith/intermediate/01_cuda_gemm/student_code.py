@@ -7,7 +7,7 @@ Transparent JIT compiler wrapper for the CUDA GEMM extension.
 from __future__ import annotations
 
 import os
-from typing import Any
+from unittest.mock import MagicMock
 
 import torch
 from torch.utils.cpp_extension import load
@@ -17,26 +17,18 @@ from hint import show_hint  # noqa: F401
 _CU_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "student_code.cu")
 
 if torch.cuda.is_available():
+    os.makedirs("./.jit_cache/", exist_ok=True)
     _cpp_module = load(
         name="hpc_intermediate_01_cuda_gemm",
         sources=[_CU_SOURCE],
         extra_cflags=["-O3"],
         extra_cuda_cflags=["-O3"],
+        build_directory="./.jit_cache/",
         verbose=False,
     )
     run_gemm = _cpp_module.run_gemm
 else:
-
-    class _DummyModule:
-        """Fallback mock for non-CUDA environments to prevent Pytest collection crashes."""
-
-        def __getattr__(self, name: str) -> Any:
-            def _dummy_func(*args: Any, **kwargs: Any) -> Any:
-                raise RuntimeError("CUDA is not available on this system.")
-
-            return _dummy_func
-
-    _cpp_module = _DummyModule()
+    _cpp_module = MagicMock()
     run_gemm = _cpp_module.run_gemm
 
 

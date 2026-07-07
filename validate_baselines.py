@@ -37,8 +37,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib
+import importlib.util
+import inspect
 import sys
+import textwrap
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -282,6 +286,66 @@ TIER1_EXERCISES: list[dict[str, Any]] = [
 ]
 
 
+def _verify_baseline_ast_policy(
+    tier_lesson_path: str, class_name: str, method_name: str, baseline_cls: Any
+) -> None:
+    """Verify that the baseline solution complies with any ast_policy defined in its test suite."""
+    test_dir = ROOT / "tests" / "curriculum" / "arraysmith" / tier_lesson_path
+    test_files = list(test_dir.glob("test_*.py"))
+    if not test_files:
+        return
+
+    test_path = test_files[0]
+    mod_name = test_path.stem
+    if mod_name in sys.modules:
+        sys.modules.pop(mod_name, None)
+
+    spec = importlib.util.spec_from_file_location(mod_name, test_path)
+    if spec is None or spec.loader is None:
+        return
+    test_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(test_mod)
+
+    test_cls = None
+    for attr_name in dir(test_mod):
+        if attr_name.startswith("Test") and isinstance(getattr(test_mod, attr_name), type):
+            test_cls = getattr(test_mod, attr_name)
+            break
+
+    if test_cls is None:
+        return
+
+    test_fn = getattr(test_cls, f"test_{method_name}", None)
+    if test_fn is None:
+        return
+
+    policy_spec = getattr(test_fn, "_ast_policy_spec", None)
+    if policy_spec is None:
+        return
+
+    from forge_core.ast_validator import ASTPolicyVisitor
+
+    baseline_fn = getattr(baseline_cls, method_name)
+    source = textwrap.dedent(inspect.getsource(baseline_fn))
+    node_to_check = ast.parse(source)
+
+    visitor = ASTPolicyVisitor(
+        max_for_loops=policy_spec.get("max_for_loops", 0),
+        max_while_loops=policy_spec.get("max_while_loops", 0),
+        forbid_imports=policy_spec.get("forbid_imports"),
+        require_calls=policy_spec.get("require_calls"),
+        forbid_calls=policy_spec.get("forbid_calls"),
+    )
+    visitor.visit(node_to_check)
+    visitor.check_requirements()
+
+    if visitor.violations:
+        violations_str = ", ".join(msg for _, msg, _ in visitor.violations)
+        raise RuntimeError(
+            f"Baseline {class_name}.{method_name} violated AST policy: {violations_str}"
+        )
+
+
 def run_tier1(verbose: bool) -> ValidationReport:
     """Execute Tier 1 — Baseline self-consistency checks.
 
@@ -302,6 +366,7 @@ def run_tier1(verbose: bool) -> ValidationReport:
         label = f"{ex['tier_lesson_path']}::{ex['method']}"
         try:
             cls = _load_baseline(ex["tier_lesson_path"], ex["class_name"])
+            _verify_baseline_ast_policy(ex["tier_lesson_path"], ex["class_name"], ex["method"], cls)
             fn = ex["fn_factory"](cls)
             result: BenchmarkResult = compare_and_benchmark(
                 student_fn=fn,

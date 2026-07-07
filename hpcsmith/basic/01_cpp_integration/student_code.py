@@ -7,6 +7,8 @@ Transparent JIT compiler wrapper for the C++ tensor addition extension.
 from __future__ import annotations
 
 import os
+import shutil
+from unittest.mock import MagicMock
 
 import numpy as np
 import torch
@@ -15,15 +17,21 @@ from torch.utils.cpp_extension import load
 from hint import show_hint  # noqa: F401
 
 _CPP_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "student_code.cpp")
+_has_cpp = any(shutil.which(c) is not None for c in ("c++", "g++", "clang", "clang++"))
 
-_cpp_module = load(
-    name="hpc_basic_01_cpp_integration",
-    sources=[_CPP_SOURCE],
-    extra_cflags=["-O3"],
-    verbose=False,
-)
-
-add_tensors = _cpp_module.add_tensors
+if _has_cpp:
+    os.makedirs("./.jit_cache/", exist_ok=True)
+    _cpp_module = load(
+        name="hpc_basic_01_cpp_integration",
+        sources=[_CPP_SOURCE],
+        extra_cflags=["-O3"],
+        build_directory="./.jit_cache/",
+        verbose=False,
+    )
+    add_tensors = _cpp_module.add_tensors
+else:
+    _cpp_module = MagicMock()
+    add_tensors = _cpp_module.add_tensors
 
 
 class CppIntegration:

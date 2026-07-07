@@ -1,10 +1,10 @@
 """
-tests/hpcsmith/conftest.py
+hpcsmith/conftest.py
 ==========================
 Pytest configuration for the ``hpcsmith`` curriculum module.
 
 Guards the entire test suite against environments where the optional ``torch``
-extra has not been installed, or where no CUDA-capable GPU is detected.
+extra has not been installed, or where no C++/CUDA compiler or GPU is detected.
 """
 
 from __future__ import annotations

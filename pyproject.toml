@@ -12,6 +12,7 @@ description = "An interactive lab training ground for NumPy (arraysmith) and PyT
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "argcomplete>=3.0.0",
     "forge-core",
     "hint",
     "matplotlib>=3.11.0",
@@ -48,7 +49,7 @@ exclude = [
     "^arraysmith/.*",
     "^tensorsmith/.*",
     "^hpcsmith/.*",
-    "^tests/(arraysmith|tensorsmith|hpcsmith)/.*",
+    "^tests/curriculum/(arraysmith|tensorsmith|hpcsmith)/.*",
     "^\\.venv/.*",
     "^trash_venv_.*",
 ]

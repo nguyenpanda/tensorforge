@@ -41,9 +41,11 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 import re
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 from nguyenpanda.swan import c24, reset
@@ -198,7 +200,7 @@ def run_check(
     env = os.environ.copy()
     if fast:
         env["TFORGE_FAST_MODE"] = "1"
-    result = subprocess.run(cmd, env=env)
+    result = subprocess.run(cmd, env=env, stdout=sys.stdout, stderr=sys.stderr)
     return result.returncode
 
 
@@ -209,7 +211,7 @@ def run_validate() -> int:
         int: Script return code (0 = all passed).
     """
     cmd = [sys.executable, str(ROOT / "validate_baselines.py")]
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, stdout=sys.stdout, stderr=sys.stderr)
     return result.returncode
 
 
@@ -220,12 +222,16 @@ def run_lint() -> int:
         int: 0 if both checks pass, otherwise non-zero exit code.
     """
     print(f"{INFO_COLOR}[TensorForge Lint] Running ruff check...{reset}")
-    res_ruff = subprocess.run([sys.executable, "-m", "ruff", "check", str(ROOT)])
+    res_ruff = subprocess.run(
+        [sys.executable, "-m", "ruff", "check", str(ROOT)], stdout=sys.stdout, stderr=sys.stderr
+    )
     if res_ruff.returncode != 0:
         return res_ruff.returncode
 
     print(f"{INFO_COLOR}[TensorForge Lint] Running mypy strict checks...{reset}")
-    res_mypy = subprocess.run([sys.executable, "-m", "mypy", str(ROOT)])
+    res_mypy = subprocess.run(
+        [sys.executable, "-m", "mypy", str(ROOT)], stdout=sys.stdout, stderr=sys.stderr
+    )
     if res_mypy.returncode != 0:
         return res_mypy.returncode
 
@@ -305,6 +311,47 @@ def run_status() -> int:
     return 0
 
 
+def run_autocomplete() -> int:
+    """Generate shell autocomplete script and print sourcing instructions."""
+    print(f"{INFO_COLOR}============================================================{reset}")
+    print(f"{INFO_COLOR}  TensorForge Autocomplete Generator{reset}")
+    print(f"{INFO_COLOR}============================================================{reset}\n")
+
+    shell_path = os.environ.get("SHELL", "/bin/bash")
+    shell_name = os.path.basename(shell_path).lower()
+    if shell_name not in ("bash", "zsh", "fish"):
+        shell_name = "bash"
+
+    script_path = ROOT / ".tforge-autocomplete.sh"
+
+    try:
+        import argcomplete
+
+        script_content = argcomplete.shellcode(["tforge"], shell=shell_name, use_defaults=True)  # type: ignore[attr-defined, no-untyped-call]
+    except Exception as e:
+        print(
+            f"{ERR_COLOR}Failed to generate native autocomplete script via argcomplete: {e}{reset}",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        script_path.write_text(script_content, encoding="utf-8")
+        print(
+            f"{GREEN_COLOR}[SUCCESS]{reset} Generated native autocomplete script for '{shell_name}':"
+        )
+        print(f"  {INFO_COLOR}{script_path.absolute()}{reset}\n")
+        print("To enable autocomplete in your current shell, run:")
+        print(
+            f"  {GREEN_COLOR}[ -f {script_path.absolute()} ] && source {script_path.absolute()}{reset}\n"
+        )
+        print("To persist this permanently, add the line above to your ~/.zshrc or ~/.bashrc.")
+        return 0
+    except Exception as e:
+        print(f"{ERR_COLOR}[ERROR]{reset} Failed to generate autocomplete script: {e}")
+        return 1
+
+
 def _to_pascal_case(name: str) -> str:
     """Convert a lesson directory name to PascalCase for class naming.
 
@@ -356,7 +403,7 @@ def run_generate(module: str, tier: str, lesson_name: str) -> int:
     student_code_py.write_text(
         f'"""\nstudent_code.py — {tier.capitalize()} Tier, Lesson {num_prefix}: {lesson_name}\n"""\n\n'
         f"import numpy as np\n"
-        f"from hint import show_hint\n\n\n"
+        f"from hint import show_hint  # noqa: F401\n\n\n"
         f"class {cls_name}:\n"
         f"    @classmethod\n"
         f"    def example_method(cls):\n"
@@ -428,90 +475,126 @@ def run_generate(module: str, tier: str, lesson_name: str) -> int:
 def main() -> None:
     """TensorForge CLI entry point.
 
-    Dispatches subcommands: ``check``, ``validate``, ``status``, ``generate``.
+    Dispatches subcommands: ``check``, ``validate``, ``status``, ``generate``, ``autocomplete``.
     """
     parser = argparse.ArgumentParser(
-        description="TensorForge CLI — Interactive Lab & Testing Utility",
+        prog="tforge",
+        description=f"{INFO_COLOR}TensorForge CLI — Interactive Lab Training Ground & Clean Lab Architecture{reset}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  tforge check arraysmith basic 01\n"
-            "  tforge check arraysmith basic 01 --fast\n"
-            "  tforge check arraysmith basic 01 create_squared_range\n"
-            "  tforge check arraysmith intermediate\n"
-            "  tforge check infra\n"
-            "  tforge validate\n"
-            "  tforge status\n"
-            "  tforge generate arraysmith basic 04_new_lesson\n"
+        epilog=textwrap.dedent(
+            f"""
+            {GREEN_COLOR}Examples:{reset}
+            {INFO_COLOR}tforge check arraysmith basic 01{reset}
+            {INFO_COLOR}tforge check arraysmith basic 01 --fast{reset}
+            {INFO_COLOR}tforge check arraysmith basic 01 -t create_squared_range{reset}
+            {INFO_COLOR}tforge check arraysmith intermediate{reset}
+            {INFO_COLOR}tforge check infra{reset}
+            {INFO_COLOR}tforge validate{reset}
+            {INFO_COLOR}tforge status{reset}
+            {INFO_COLOR}tforge generate arraysmith basic 04_new_lesson{reset}
+            {INFO_COLOR}tforge autocomplete{reset}
+        """
         ),
     )
-    subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
+    subparsers = parser.add_subparsers(
+        dest="command", help=f"{INFO_COLOR}Available subcommands{reset}"
+    )
 
     # ------------------------------------------------------------------ check
-    check_parser = subparsers.add_parser("check", help="Run tests for student solutions")
+    check_parser = subparsers.add_parser(
+        "check",
+        help=f"{GREEN_COLOR}Run comprehensive unit tests and benchmarks against student solutions{reset}",
+        description=f"{INFO_COLOR}Execute pytest benchmark suites for specified curricula, tiers, and lessons with granular method targeting.{reset}",
+    )
     check_parser.add_argument(
         "curriculum",
         nargs="?",
         default="all",
-        help=(
-            "Target curriculum ('arraysmith', 'tensorsmith', 'hpcsmith', 'infra', or 'all'). "
-            "Default: 'all'"
-        ),
+        help=f"{INFO_COLOR}Target curriculum ('arraysmith', 'tensorsmith', 'hpcsmith', 'infra', or 'all'). Default: 'all'{reset}",
     )
     check_parser.add_argument(
         "tier",
         nargs="?",
         default=None,
-        help=(
-            "Tier within the curriculum ('basic', 'intermediate', 'advanced', "
-            "'applications'). Omitting runs all tiers."
-        ),
+        help=f"{INFO_COLOR}Tier within the curriculum ('basic', 'intermediate', 'advanced', 'applications'). Omitting runs all tiers.{reset}",
     )
     check_parser.add_argument(
         "lesson",
         nargs="?",
         default=None,
-        help="Lesson ID or prefix (e.g. '01'). Omitting runs all lessons in the tier.",
+        help=f"{INFO_COLOR}Lesson ID or prefix (e.g., '01'). Omitting runs all lessons in the tier.{reset}",
     )
     check_parser.add_argument(
         "method",
         nargs="?",
         default=None,
-        help="Optional specific method name to test (e.g. 'create_squared_range').",
+        help=f"{INFO_COLOR}Specific method name to test via pytest -k filter (e.g., 'create_squared_range').{reset}",
     )
     check_parser.add_argument(
         "--method",
         "-m",
+        "--target",
+        "-t",
         dest="method_flag",
         default=None,
-        help="Optional specific method name to test (flag form).",
+        help=f"{INFO_COLOR}Specific method name to test via pytest -k filter (flag form).{reset}",
     )
     check_parser.add_argument(
         "--fast",
         "-f",
         action="store_true",
         default=False,
-        help=(
-            "Fast Mode: run each function exactly once for correctness only. "
-            "Skips timing loops, tracemalloc, and the performance scorecard. "
-            "Equivalent to setting TFORGE_FAST_MODE=1."
-        ),
+        help=f"{WARN_COLOR}Fast Mode: run each function exactly once for correctness only. Skips timing loops and performance scorecards.{reset}",
     )
 
     # --------------------------------------------------------------- validate
-    subparsers.add_parser("validate", help="Run baseline self-consistency and registry checks")
+    subparsers.add_parser(
+        "validate",
+        help=f"{GREEN_COLOR}Run baseline self-consistency and registry checks{reset}",
+        description=f"{INFO_COLOR}Validate all baseline reference implementations and verify hint registry completeness across all tiers.{reset}",
+    )
 
     # ------------------------------------------------------------------- lint
-    subparsers.add_parser("lint", help="Run static analysis (ruff and mypy strict mode)")
+    subparsers.add_parser(
+        "lint",
+        help=f"{GREEN_COLOR}Run static analysis (ruff formatting and mypy strict type checking){reset}",
+        description=f"{INFO_COLOR}Perform static code analysis across the entire TensorForge repository using ruff and mypy in strict mode.{reset}",
+    )
 
     # ----------------------------------------------------------------- status
-    subparsers.add_parser("status", help="Show curriculum completion progress report")
+    subparsers.add_parser(
+        "status",
+        help=f"{GREEN_COLOR}Show curriculum completion progress report and scorecards{reset}",
+        description=f"{INFO_COLOR}Display an interactive progress report showing passed lessons and overall completion percentages per tier.{reset}",
+    )
 
     # --------------------------------------------------------------- generate
-    generate_parser = subparsers.add_parser("generate", help="Scaffold a new curriculum lesson")
-    generate_parser.add_argument("module", help="Curriculum module name (e.g. 'arraysmith')")
-    generate_parser.add_argument("tier", help="Tier name (e.g. 'basic')")
-    generate_parser.add_argument("lesson_name", help="Lesson folder name (e.g. '04_broadcasting')")
+    generate_parser = subparsers.add_parser(
+        "generate",
+        help=f"{GREEN_COLOR}Scaffold a new curriculum lesson directory and starter templates{reset}",
+        description=f"{INFO_COLOR}Create a new lesson directory with starter instruction files, baseline solutions, and student code scaffolds.{reset}",
+    )
+    generate_parser.add_argument(
+        "module", help=f"{INFO_COLOR}Curriculum module name (e.g., 'arraysmith'){reset}"
+    )
+    generate_parser.add_argument("tier", help=f"{INFO_COLOR}Tier name (e.g., 'basic'){reset}")
+    generate_parser.add_argument(
+        "lesson_name", help=f"{INFO_COLOR}Lesson folder name (e.g., '04_broadcasting'){reset}"
+    )
+
+    # ------------------------------------------------------------- autocomplete
+    subparsers.add_parser(
+        "autocomplete",
+        help=f"{GREEN_COLOR}Generate native shell autocomplete script (.tforge-autocomplete.sh){reset}",
+        description=f"{INFO_COLOR}Dynamically generate shell completion scripts for bash, zsh, or fish using native CLI parser introspection.{reset}",
+    )
+
+    try:
+        import argcomplete
+
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
 
     args = parser.parse_args()
 
@@ -546,6 +629,10 @@ def main() -> None:
 
     elif args.command == "generate":
         exit_code = run_generate(args.module, args.tier, args.lesson_name)
+        sys.exit(exit_code)
+
+    elif args.command == "autocomplete":
+        exit_code = run_autocomplete()
         sys.exit(exit_code)
 
     else:
