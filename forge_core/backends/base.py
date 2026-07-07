@@ -107,10 +107,6 @@ class ExecutionBackend(ABC):
         frees device memory.  For NumPy backends this is typically a no-op.
         """
 
-    # ------------------------------------------------------------------
-    # Context manager protocol — guarantees teardown on exception.
-    # ------------------------------------------------------------------
-
     def __enter__(self) -> Self:
         """Invoke ``setup`` and ``warmup``; return ``self`` for use in ``with`` blocks.
 

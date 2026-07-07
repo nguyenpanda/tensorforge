@@ -66,6 +66,7 @@ class PolicyRule(abc.ABC):
 
 
 def _resolve_call_name(func_node: ast.AST) -> str:
+    """Extract a dotted function call string from an AST expression node for structural policy matching."""
     if isinstance(func_node, ast.Name):
         return func_node.id
     elif isinstance(func_node, ast.Attribute):
@@ -75,6 +76,7 @@ def _resolve_call_name(func_node: ast.AST) -> str:
 
 
 def _call_matches(actual: str, pattern: str) -> bool:
+    """Compare an observed AST call string against a policy pattern, supporting unqualified attribute matching."""
     if not actual or not pattern:
         return False
     if actual == pattern:

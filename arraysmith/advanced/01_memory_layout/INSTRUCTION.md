@@ -1,58 +1,75 @@
-# Module 06: Memory Layout, Contiguity & Strides
+# Module: Memory Layout, Contiguity & Strides
 
 ## Learning Objectives
-- Understand C-contiguous (row-major) versus Fortran-contiguous (column-major) memory storage in RAM.
-- Inspect array byte strides $S = (s_0, s_1, \dots, s_{k-1})$ to calculate memory offsets for multidimensional indexing.
-- Differentiate between zero-copy memory views (inspecting `base` or `np.may_share_memory`) and independent data copies.
+- Understand C-contiguous (row-major) versus Fortran-contiguous (column-major) memory storage architectures.
+- Analyze array byte strides to understand multidimensional memory offset calculations.
+- Differentiate between zero-copy memory views and independent data buffer allocations.
 
 ---
 
 ## Exercise 1: Ensuring C-Contiguity (`ensure_c_contiguous`)
 
-In high-performance computing and neural network accelerators, matrix kernels often demand C-contiguous row-major alignment in memory.
+In high-performance computing and hardware accelerators, matrix kernels require C-contiguous row-major alignment in memory to achieve optimal memory coalescing.
 
-### Task
-Given an arbitrary multidimensional array $A \in \mathbb{R}^{d_0 \times d_1 \times \dots \times d_{k-1}}$, verify its storage layout using `flags.c_contiguous`:
-- If $A$ is already C-contiguous, return $A$ directly without copying to preserve memory bandwidth.
-- If $A$ is non-contiguous (such as a strided slice or Fortran-order transpose), return a newly allocated C-contiguous copy using `np.ascontiguousarray`.
+### Input Specifications
+- **`arr`**: A `numpy.ndarray` of arbitrary dimension $d \ge 1$ and arbitrary data type, stored in either C-contiguous, Fortran-contiguous, or non-contiguous sliced layout.
+- **Shape**: $(N_0, N_1, \dots, N_{k-1})$ where $N_i \ge 1$.
+
+### Output Specifications
+- **Return Type**: `numpy.ndarray` with identical shape, data type, and element values as the input array.
+- **Constraints**: 
+  - The returned array must have C-contiguous memory ordering.
+  - If the input array is already C-contiguous, it must be returned without allocating a new memory buffer to conserve memory bandwidth.
+  - If the input array is not C-contiguous, a new C-contiguous array must be returned.
+  - You must not use Python loops.
+
+Call `show_hint()` if you are stuck.
 
 ---
 
 ## Exercise 2: Detecting Shared Memory Buffers (`check_memory_share`)
 
-When slicing tensors or passing arrays across pipeline stages, unintended data mutations can occur if arrays silently share underlying memory buffers.
+When slicing tensors across pipeline stages, unintended data mutations can occur if arrays share underlying memory buffers without explicit copying.
 
-### Task
-Given two arrays $X$ and $Y$, determine whether they point to overlapping memory addresses by evaluating buffer sharing (via `np.may_share_memory` or inspecting the `base` attribute). Return `True` if memory is shared, and `False` otherwise.
+### Input Specifications
+- **`arr1`**: A `numpy.ndarray` of arbitrary shape and data type.
+- **`arr2`**: A `numpy.ndarray` of arbitrary shape and data type.
+
+### Output Specifications
+- **Return Type**: `bool` (`True` or `False`).
+- **Constraints**: 
+  - Return `True` if `arr1` and `arr2` share any overlapping physical memory addresses in their underlying data buffer.
+  - Return `False` if they reference entirely independent memory allocations.
+  - You must not use Python loops.
+
+Call `show_hint()` if you are stuck.
 
 ---
 
 ## Exercise 3: Inspecting Row Strides (`get_row_stride_bytes`)
 
-The memory address of element $(i, j)$ in a 2D matrix $M \in \mathbb{R}^{N \times M}$ is calculated as:
+The physical memory address of element $(i, j)$ in a 2D matrix is determined by axis stride parameters representing the number of bytes required to traverse between consecutive indices.
 
-$$\text{Address}(i, j) = \text{Base} + i \times s_0 + j \times s_1$$
+### Input Specifications
+- **`arr`**: A 2D `numpy.ndarray` of shape $(N, M)$ where $N \ge 1$ and $M \ge 1$, with any standard numerical data type.
 
-where $s_0$ and $s_1$ represent the byte strides along axis $0$ and axis $1$ respectively.
+### Output Specifications
+- **Return Type**: `int`.
+- **Constraints**: 
+  - Return the exact number of bytes required in physical memory to step from row $i$ to row $i+1$ along axis 0.
+  - You must not use Python loops.
 
-### Task
-Given a 2D matrix $M \in \mathbb{R}^{N \times M}$, return the exact integer number of bytes $s_0$ required to step from row $i$ to row $i+1$ by accessing the `strides` attribute.
+Call `show_hint()` if you are stuck.
 
 ---
 
 ## Verification & Testing
-Run your verification suite using the TensorForge CLI:
+Execute the verification suite via the TensorForge CLI:
 
 ```bash
-# Check this lesson using the CLI
-tforge check arraysmith advanced 01
+# Verify the full module
+uv run tforge check arraysmith advanced 01
 
-# Run a specific test method within this lesson
-tforge check arraysmith advanced 01 ensure_c_contiguous
-
-# Check the entire arraysmith curriculum
-tforge check arraysmith
-
-# View your progress across all modules
-tforge status
+# Verify a specific exercise
+uv run tforge check arraysmith advanced 01 -t ensure_c_contiguous
 ```

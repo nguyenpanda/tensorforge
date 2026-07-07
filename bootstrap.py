@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-TensorForge Multi-Platform Bootstrap Script
-Handles OS verification, NFS I/O bottleneck resolution via /tmp symlinking,
-interactive and non-interactive learning path selection, and dynamic PyTorch CUDA/MPS URL resolution.
+TensorForge Multi-Platform Bootstrap & Environment Pipeline.
 
-Uses standard libraries at module load time for clean idempotency before environment synchronization.
+Encapsulates OS compatibility verification, NFS I/O bottleneck mitigation via /tmp symlinking,
+interactive and non-interactive learning path selection, and dynamic PyTorch CUDA/MPS URL resolution.
+Provides the foundational OOP architecture for initializing clean lab environments.
 """
 
 from __future__ import annotations

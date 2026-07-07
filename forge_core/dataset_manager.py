@@ -51,7 +51,11 @@ class DatasetManager:
         expected_sha256: str | None = None,
         force_download: bool = False,
     ) -> Path:
-        """Retrieve a dataset from the cache or download it atomically if missing.
+        """Retrieve a dataset from cache or download it atomically if missing.
+
+        Downloads are written to a temporary UUID-tagged `.tmp` file and atomically
+        renamed to the target filename upon completion and SHA-256 validation. This
+        prevents corrupted partial downloads if interrupted.
 
         Args:
             url: The remote URL to download the dataset from.

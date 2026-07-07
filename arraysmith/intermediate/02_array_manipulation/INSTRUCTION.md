@@ -1,142 +1,63 @@
-# Module 04 — Array Manipulation
+# Module: Array Manipulation & Assembly
 
-## Table of Contents
-1. [Objectives](#1-objectives)
-2. [Concept Introduction](#2-concept-introduction)
-3. [Exercises](#3-exercises)
-4. [Running Your Tests](#4-running-your-tests)
-
----
-
-## 1. Objectives
-
-By the end of this module you will be able to:
-
-- Stack multiple 1-D vectors along a new orthogonal axis to construct matrices using `np.vstack`.
-- Concatenate existing tensors along shared dimensions using `np.concatenate`.
-- Select the appropriate `axis` parameter for row-wise versus column-wise joining.
-- Understand dimensional compatibility rules governing tensor assembly.
+## Learning Objectives
+- Stack multiple 1-D vectors along a new orthogonal axis to assemble multidimensional matrices.
+- Concatenate existing tensors along shared dimensions without altering array ordering or dimensionality.
+- Understand dimensional compatibility rules and axis alignment governing tensor assembly routines.
 
 ---
 
-## 2. Concept Introduction
+## Concept Overview
 
-### 2.1 Stacking vs Concatenating
-
-| Operation | Function | Dimensional Effect |
-|---|---|---|
-| Stacking | `np.vstack` | Introduces a new axis ($N$ vectors of length $M \rightarrow$ matrix $N \times M$) |
-| Concatenating | `np.concatenate` | Joins along an existing axis without changing array order ($\text{ndim}$ constant) |
-
-### 2.2 `np.vstack` — Vertical Stacking
-
-`vstack` treats each input vector $v_i \in \mathbb{R}^M$ as a row and stacks them vertically to generate matrix $A \in \mathbb{R}^{N \times M}$:
-
-$$A = \begin{bmatrix} v_0^T \\ v_1^T \\ \vdots \\ v_{N-1}^T \end{bmatrix}$$
-
-```
-a = [1, 2, 3]
-b = [4, 5, 6]
-c = [7, 8, 9]
-
-np.vstack([a, b, c])
--> [[1, 2, 3],    shape (3, 3)
-    [4, 5, 6],
-    [7, 8, 9]]
-```
-
-### 2.3 `np.concatenate` — Axis-Controlled Joining
-
-`concatenate` joins matrices $A \in \mathbb{R}^{N \times M_1}$ and $B \in \mathbb{R}^{N \times M_2}$ along existing axis $d$:
-
-$$\text{axis} = 0 \implies \text{stack rows vertically (requires matching column count } M)$$
-
-$$\text{axis} = 1 \implies \text{join columns horizontally (requires matching row count } N)$$
-
-```
-left  = [[1, 2],     shape (2, 2)
-         [3, 4]]
-
-right = [[5, 6, 7],  shape (2, 3)
-         [8, 9, 0]]
-
-np.concatenate([left, right], axis=1)
--> [[1, 2, 5, 6, 7],   shape (2, 5)
-    [3, 4, 8, 9, 0]]
-```
-
-### 2.4 Shape Compatibility Rules
-
-```
-np.vstack(arrays)
-  ✅ All input vectors share identical dimension size M
-  ❌ Mismatched lengths raise ValueError
-
-np.concatenate([A, B], axis=1)
-  ✅ Matrices share identical row dimension N (A.shape[0] == B.shape[0])
-  ❌ Mismatched row counts raise ValueError
-```
+Assembling complex data structures from constituent vectors or matrices requires precise dimensional alignment. Stacking routines introduce new structural axes to combine lower-dimensional tensors, whereas concatenation routines join tensors along pre-existing shared dimensions.
 
 ---
 
-## 3. Exercises
+## Exercise 1: Row Stacking (`stack_rows`)
 
-Open `student_code.py` and implement the two methods below.
+### Input Specifications
+- **`arrays`**: A `list` of 1-D `numpy.ndarray` objects: $[v_0, v_1, \dots, v_{k-1}]$.
+- **Shape**: Exactly $k$ arrays ($k \ge 1$), where each array $v_i$ has shape `(M,)` ($M \ge 1$).
+- **Data Type**: All constituent arrays share an identical standard numeric data type.
 
-> **Rule:** No Python `for`-loops or iteration constructs. Enforced by static AST analysis and performance benchmarking.
+### Output Specifications
+- **Return Type**: `numpy.ndarray`.
+- **Shape**: `(k, M)` — a 2-D matrix with $k$ rows and $M$ columns.
+- **Data Type**: Identical to the input arrays' data type.
+- **Constraints**:
+  - Each input vector $v_i$ must form the $i$-th row of the returned matrix: $X_{i,j} = (v_i)_j$.
+  - You must not use Python loops or comprehensions to iterate across array elements or rows.
 
----
-
-### Exercise 1 — `stack_rows(arrays)`
-
-**Task:** Given a sequence of 1-D vectors $v_0, v_1, \dots, v_{k-1} \in \mathbb{R}^M$, assemble them into a matrix $X \in \mathbb{R}^{k \times M}$:
-
-$$X_{i,j} = (v_i)_j$$
-
-```
-arrays = [[1, 2, 3, 4, 5],
-          [6, 7, 8, 9, 0]]
-
-Output = [[1, 2, 3, 4, 5],   shape=(2, 5)
-          [6, 7, 8, 9, 0]]
-```
-
-**API to use:** `np.vstack(arrays)`
+Call `show_hint()` if you are stuck.
 
 ---
 
-### Exercise 2 — `concatenate_side_by_side(left, right)`
+## Exercise 2: Horizontal Concatenation (`concatenate_side_by_side`)
 
-**Task:** Given matrices $L \in \mathbb{R}^{N \times M_1}$ and $R \in \mathbb{R}^{N \times M_2}$, join them horizontally to produce matrix $Y \in \mathbb{R}^{N \times (M_1 + M_2)}$:
+### Input Specifications
+- **`left`**: A 2-D `numpy.ndarray` of shape `(N, M_1)` where $N \ge 1$ and $M_1 \ge 1$.
+- **`right`**: A 2-D `numpy.ndarray` of shape `(N, M_2)` where $N \ge 1$ and $M_2 \ge 1$.
+- **Data Type**: Both matrices share an identical standard numeric data type.
 
-$$Y = \begin{bmatrix} L & R \end{bmatrix}$$
+### Output Specifications
+- **Return Type**: `numpy.ndarray`.
+- **Shape**: `(N, M_1 + M_2)` — a 2-D matrix with $N$ rows and $M_1 + M_2$ columns.
+- **Data Type**: Identical to the input matrices' data type.
+- **Constraints**:
+  - The returned matrix must contain all columns from `left` followed horizontally by all columns from `right`.
+  - You must not use Python loops or iterate across rows or columns.
 
-```
-left  = [[1, 2],         right = [[5, 6, 7],
-         [3, 4]]                  [8, 9, 0]]
-
-Output = [[1, 2, 5, 6, 7],   shape=(2, 5)
-          [3, 4, 8, 9, 0]]
-```
-
-**API to use:** `np.concatenate([left, right], axis=1)`
+Call `show_hint()` if you are stuck.
 
 ---
 
-## 4. Running Your Tests
-
-Execute your verification suite using the TensorForge CLI:
+## Verification & Testing
+Execute the verification suite via the TensorForge CLI:
 
 ```bash
-# Check this lesson using the CLI
-tforge check arraysmith intermediate 02
+# Verify the full module
+uv run tforge check arraysmith intermediate 02
 
-# Run a specific test method within this lesson
-tforge check arraysmith intermediate 02 stack_rows
-
-# Check the entire arraysmith curriculum
-tforge check arraysmith
-
-# View your progress across all modules
-tforge status
+# Verify a specific exercise
+uv run tforge check arraysmith intermediate 02 -t stack_rows
 ```

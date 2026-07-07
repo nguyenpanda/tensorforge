@@ -290,12 +290,11 @@ def compare_and_benchmark(
     Raises:
         pytest.fail: On correctness mismatch, dtype mismatch, or performance threshold breach.
     """
-    from forge_core.backends.numpy_backend import NumpyBackend  # local import avoids circular deps
+    from forge_core.backends.numpy_backend import NumpyBackend
 
     if config is None:
         config = BenchmarkConfig()
 
-    # Resolve backends: fall back to NumpyBackend when the caller did not supply one.
     _student_backend = (
         student_backend if student_backend is not None else NumpyBackend(fn=student_fn)
     )
@@ -303,11 +302,6 @@ def compare_and_benchmark(
         baseline_backend if baseline_backend is not None else NumpyBackend(fn=baseline_fn)
     )
 
-    # ------------------------------------------------------------------
-    # Fast Mode bypass: single execution, correctness only, no profiling.
-    # Activated by setting TFORGE_FAST_MODE=1 in the subprocess environment
-    # (via `tforge check --fast`) or directly in the calling process env.
-    # ------------------------------------------------------------------
     if os.environ.get("TFORGE_FAST_MODE") == "1":
         with _baseline_backend:
             baseline_output = _baseline_backend.execute()
@@ -326,9 +320,6 @@ def compare_and_benchmark(
             student_peak_kb=0.0,
             baseline_peak_kb=0.0,
         )
-    # ------------------------------------------------------------------
-    # Full benchmark path.
-    # ------------------------------------------------------------------
 
     with _baseline_backend:
         baseline_time_s, baseline_peak_kb, baseline_output = _time_function(

@@ -469,9 +469,10 @@ class CLIController:
         instruction_md.write_text(
             f"# Lesson: {lesson_name}\n\n"
             f"## Learning Objectives\n"
-            f"- Master NumPy array manipulations and vectorized operations.\n\n"
+            f"- Master array manipulations and vectorized operations.\n\n"
             f"## Task\n"
-            f"Implement the methods in `student_code.py` complying with architectural constraints.\n\n"
+            f"Implement the methods in `student_code.py` complying with architectural constraints.\n"
+            f"Call `show_hint()` if you are stuck.\n\n"
             f"## Verification\n"
             f"Run your tests using the TensorForge CLI:\n"
             f"```bash\n"
@@ -522,11 +523,6 @@ class CLIController:
         print("    └─ _baseline.py")
         print(f"    └─ test_{num_prefix}.py\n")
         return 0
-
-
-# ---------------------------------------------------------------------------
-# Standalone functional wrappers delegating to CLIController
-# ---------------------------------------------------------------------------
 
 
 def run_check(

@@ -1,51 +1,62 @@
-# Module 05: Boolean Logic & Conditional Array Operations
+# Module: Boolean Logic & Conditional Array Operations
 
 ## Learning Objectives
-- Master vector-level boolean evaluations using `np.where`, `np.isclose`, `np.all`, and `np.any`.
-- Avoid Python iterative loops by expressing conditional logic as boolean array masks over dimensions $N \times M$.
-- Understand floating-point precision comparisons and tolerance thresholds defined by $f(a, b) \le \text{atol} + \text{rtol} \times |b|$.
+- Evaluate vector-level boolean predicates and conditional expressions without iterative loops.
+- Express complex conditional branch logic across multidimensional arrays via vectorized operations.
+- Evaluate numerical floating-point equality within defined absolute and relative tolerance boundaries.
 
 ---
 
 ## Exercise 1: Conditional Discounting (`apply_discount`)
 
-In quantitative finance and retail analytics, pricing algorithms frequently apply conditional adjustments across large product catalogs without iterative branching.
+### Input Specifications
+- **`prices`**: A 1-D or 2-D `numpy.ndarray` containing floating-point item prices.
+- **Shape**: Arbitrary shape $(N,)$ or $(N, M)$ where $N, M \ge 1$.
+- **Data Type**: `numpy.float64` (64-bit floating-point).
+- **`threshold`**: A scalar `float` defining the price boundary above which discounts apply.
+- **`discount_rate`**: A scalar `float` defining the fractional reduction rate (e.g., $0.20$ for a $20\%$ discount).
 
-### Task
-Given a matrix of item prices $P \in \mathbb{R}^{N \times M}$, apply a fractional discount $d$ (e.g., $d = 0.20$ for a $20\%$ discount) to all prices strictly exceeding a threshold $T$:
+### Output Specifications
+- **Return Type**: `numpy.ndarray`.
+- **Shape**: Exactly identical to the shape of `prices`.
+- **Data Type**: `numpy.float64`.
+- **Constraints**:
+  - Every element $P'_{i,j}$ in the returned array must equal $P_{i,j} \times (1 - \text{discount\_rate})$ if $P_{i,j} > \text{threshold}$, and must equal $P_{i,j}$ otherwise.
+  - You must not modify the input array in place.
+  - You must not use Python loops or conditional branching statements (`if/else`) across individual elements.
 
-$$P_{i,j}' = \begin{cases} P_{i,j} \times (1 - d) & \text{if } P_{i,j} > T \\ P_{i,j} & \text{otherwise} \end{cases}$$
-
-You **must** use `np.where` to construct the resulting price array $P'$.
+Call `show_hint()` if you are stuck.
 
 ---
 
 ## Exercise 2: Row-wise Floating-Point Equality (`identify_close_rows`)
 
-When comparing numerical outputs from floating-point matrix operations or neural network tensors, exact equality ($A == B$) often fails due to machine epsilon $\epsilon$. 
+### Input Specifications
+- **`matrix_a`**: A 2-D `numpy.ndarray` containing floating-point values.
+- **`matrix_b`**: A 2-D `numpy.ndarray` containing floating-point values.
+- **Shape**: Both matrices share identical dimensions $(N, M)$ where $N \ge 1$ and $M \ge 1$.
+- **Data Type**: Floating-point (`float32` or `float64`).
+- **`rtol`**: A scalar `float` defining the relative tolerance parameter.
 
-### Task
-Given two matrices $A, B \in \mathbb{R}^{N \times M}$, identify which rows are approximately identical within relative tolerance $\text{rtol}$ (where $|A_{i,j} - B_{i,j}| \le \text{rtol} \times |B_{i,j}|$). Return a boolean vector $v \in \{0, 1\}^N$ such that:
+### Output Specifications
+- **Return Type**: `numpy.ndarray`.
+- **Shape**: `(N,)` — a 1-D boolean vector containing exactly one element per row of the input matrices.
+- **Data Type**: `numpy.bool_` (boolean).
+- **Constraints**:
+  - The $i$-th element of the returned vector must be `True` if and only if all corresponding elements in row $i$ of both matrices are approximately equal within relative tolerance `rtol`.
+  - You must not use Python loops or iterate across rows or columns.
 
-$$v_i = \bigwedge_{j=1}^{M} \text{isclose}(A_{i,j}, B_{i,j}, \text{rtol})$$
-
-You **must** use `np.isclose` combined with `np.all` across axis $d = 1$.
+Call `show_hint()` if you are stuck.
 
 ---
 
 ## Verification & Testing
-Run your verification suite using the TensorForge CLI:
+Execute the verification suite via the TensorForge CLI:
 
 ```bash
-# Check this lesson using the CLI
-tforge check arraysmith intermediate 03
+# Verify the full module
+uv run tforge check arraysmith intermediate 03
 
-# Run a specific test method within this lesson
-tforge check arraysmith intermediate 03 apply_discount
-
-# Check the entire arraysmith curriculum
-tforge check arraysmith
-
-# View your progress across all modules
-tforge status
+# Verify a specific exercise
+uv run tforge check arraysmith intermediate 03 -t apply_discount
 ```

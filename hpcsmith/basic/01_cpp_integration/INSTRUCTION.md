@@ -1,69 +1,42 @@
-# Module 01 — C++ Integration (HPC Bridge)
+# Module: C++ Integration & HPC Bridge
 
-## Table of Contents
-1. [Objectives](#1-objectives)
-2. [Concept Introduction](#2-concept-introduction)
-3. [Exercises](#3-exercises)
-4. [Running Your Tests](#4-running-your-tests)
-
----
-
-## 1. Objectives
-
-By the end of this module you will be able to:
-- Connect student-authored C++ kernels to Python using PyTorch's `torch.utils.cpp_extension.load`.
-- Seamlessly transition data between NumPy arrays (`np.ndarray`) and PyTorch tensors (`torch.Tensor`) with zero copying where possible using `torch.from_numpy()`.
-- Understand how pybind11 exposes native ATen operators to the Python runtime.
+## Learning Objectives
+- Connect native C++ compute kernels to the Python runtime environment via JIT compilation.
+- Transition tensor data buffers across host memory and native execution backends without redundant copying.
+- Understand how native ATen tensor operations bind to Python call interfaces.
 
 ---
 
-## 2. Concept Introduction
+## Exercise 1: Native Tensor Addition (`add_tensors`)
 
-### 2.1 Why Native C++ Extensions?
+In high-performance systems and custom operator design, core compute kernels are authored in native C++ to bypass interpreter overhead and leverage specialized compiler optimizations.
 
-While PyTorch provides optimized built-in operations, high-performance computing (HPC) and custom systems research often require authoring native C++ or CUDA kernels. The TensorForge framework transparently compiles `student_code.cpp` on-the-fly and binds native symbols directly to Python.
+### Input Specifications
+- **`a`**: A PyTorch tensor (`at::Tensor` in C++, `torch.Tensor` in Python).
+- **`b`**: A PyTorch tensor (`at::Tensor` in C++, `torch.Tensor` in Python).
+- **Shape**: Both input tensors share identical dimensions $(d_0, d_1, \dots, d_{k-1})$ where $k \ge 1$.
+- **Data Type**: Standard numeric precision (`float32`, `float64`, `int32`, `int64`).
 
-### 2.2 Transparent JIT Compilation
+### Output Specifications
+- **Return Type**: `at::Tensor` (`torch.Tensor`).
+- **Shape**: Identical to the dimensions of input tensors `a` and `b`.
+- **Data Type**: Identical to the input tensors' data type.
+- **Constraints**:
+  - The returned tensor must contain the element-wise sum of operands `a` and `b`.
+  - The implementation must be authored in `student_code.cpp` and exposed via pybind11 module bindings.
+  - You must not perform manual scalar loops across tensor elements in C++.
 
-The Python wrapper `student_code.py` invokes `torch.utils.cpp_extension.load` to compile the C++ source file and map symbols into the module namespace:
-
-```python
-from torch.utils.cpp_extension import load
-
-_cpp_module = load(
-    name="hpc_basic_01_cpp_integration",
-    sources=["student_code.cpp"],
-    extra_cflags=["-O3"],
-)
-add_tensors = _cpp_module.add_tensors
-```
-
----
-
-## 3. Exercises
-
-Open `student_code.cpp` and implement the C++ function `add_tensors`.
-
-### Exercise 1 — `add_tensors()`
-
-**Task:** Add two PyTorch tensors $a, b$ using C++ ATen arithmetic operator overloading:
-
-$$y = a + b$$
-
-**Implementation Steps:**
-1. In `student_code.cpp`, remove the `throw std::runtime_error(...)` statement.
-2. Return `a + b;` using ATen's overloaded addition operator.
+Call `show_hint()` if you are stuck.
 
 ---
 
-## 4. Running Your Tests
-
-Execute your verification suite using the TensorForge CLI:
+## Verification & Testing
+Execute the verification suite via the TensorForge CLI:
 
 ```bash
-# Check this lesson
+# Verify the full module
 uv run tforge check hpcsmith basic 01
 
-# Run tests directly with pytest
-uv run pytest tests/curriculum/hpcsmith/basic/01_cpp_integration/test_01.py -v -s
+# Verify a specific exercise
+uv run tforge check hpcsmith basic 01 -t test_addition_correctness
 ```
